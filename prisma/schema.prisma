@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  prizes           Prize[]
+  codes            Code[]
+  participations   Participation[]
+  contacts         WhatsAppContact[]
+  promotionMessages PromotionMessage[]
+  wheelConfig      WheelConfig?
+  adminLogs        AdminLog[]
+}
+
+model Prize {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String   @default("#FF6B6B")
+  icon        String?
+  probability Int      @default(10)
+  isLosing    Boolean  @default(false)
+  sectorLabel String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaignId     String
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  codes          Code[]
+  participations Participation[]
+}
+
+model Code {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  status    String   @default("unused") // unused, used, winning, losing
+  prizeId   String?
+  prize     Prize?   @relation(fields: [prizeId], references: [id])
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  campaignId     String
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  participation  Participation?
+}
+
+model Participation {
+  id              String   @id @default(cuid())
+  participantName String?
+  participantPhone String?
+  codeValue       String
+  prizeId         String?
+  prize           Prize?   @relation(fields: [prizeId], references: [id])
+  codeId          String   @unique
+  code            Code     @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model WhatsAppContact {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model PromotionMessage {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  imageUrl  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model WheelConfig {
+  id              String   @id @default(cuid())
+  spinDuration    Int      @default(5000)
+  minRotations    Int      @default(3)
+  maxRotations    Int      @default(7)
+  pointerColor    String   @default("#FF0000")
+  centerColor     String   @default("#FFFFFF")
+  outerRingColor  String   @default("#333333")
+  backgroundColor String   @default("#1a1a2e")
+  textColor       String   @default("#FFFFFF")
+  fontSize        Int      @default(14)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  campaignId String @unique
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  adminName String   @default("admin")
+  createdAt DateTime @default(now())
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+}

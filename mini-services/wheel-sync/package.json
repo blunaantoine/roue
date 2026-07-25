@@ -1,0 +1,11 @@
+{
+  "name": "wheel-sync",
+  "version": "1.0.0",
+  "description": "WebSocket mini-service for Wheel of Fortune real-time sync",
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  }
+}
