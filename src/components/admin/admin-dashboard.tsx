@@ -1,7 +1,6 @@
 'use client';
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CampaignPanel } from './campaign-panel';
 import { PrizePanel } from './prize-panel';
 import { CodePanel } from './code-panel';
 import { ParticipationPanel } from './participation-panel';
@@ -12,7 +11,6 @@ import { StatsPanel } from './stats-panel';
 import { ExportPanel } from './export-panel';
 import { AdminLogPanel } from './admin-log-panel';
 import {
-  Megaphone,
   Gift,
   QrCode,
   Users,
@@ -27,12 +25,8 @@ import {
 export function AdminDashboard() {
   return (
     <div className="container mx-auto px-4 py-6">
-      <Tabs defaultValue="campaigns" className="w-full">
+      <Tabs defaultValue="prizes" className="w-full">
         <TabsList className="flex w-full flex-wrap h-auto gap-1">
-          <TabsTrigger value="campaigns" className="gap-1.5">
-            <Megaphone className="size-4" />
-            <span className="hidden sm:inline">Campagnes</span>
-          </TabsTrigger>
           <TabsTrigger value="prizes" className="gap-1.5">
             <Gift className="size-4" />
             <span className="hidden sm:inline">Lots</span>
@@ -71,9 +65,6 @@ export function AdminDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="campaigns">
-          <CampaignPanel />
-        </TabsContent>
         <TabsContent value="prizes">
           <PrizePanel />
         </TabsContent>
