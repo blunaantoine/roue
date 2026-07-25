@@ -28,7 +28,7 @@ export async function GET(
   }
 }
 
-// PUT: Update code - specifically to reset a code to "losing" status (admin action)
+// PUT: Update code status and result (admin action)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,7 +36,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status, prizeId } = body;
+    const { status, result, prizeId } = body;
 
     const existing = await db.code.findUnique({ where: { id } });
     if (!existing) {
@@ -44,14 +44,30 @@ export async function PUT(
     }
 
     const updateData: Record<string, unknown> = {};
+
+    // Update status (usage: unused/used)
     if (status !== undefined) {
       updateData.status = status;
-      if (status === 'losing' || status === 'unused') {
+      if (status === 'unused') {
+        // Resetting to unused: clear usage date and result
         updateData.usedAt = null;
-      } else {
+        updateData.result = null;
+      } else if (status === 'used') {
         updateData.usedAt = new Date();
       }
     }
+
+    // Update result (outcome: winning/losing/null)
+    if (result !== undefined) {
+      updateData.result = result === null ? null : result;
+      // If setting a result, code must be "used"
+      if (result !== null) {
+        updateData.status = 'used';
+        updateData.usedAt = updateData.usedAt || new Date();
+      }
+    }
+
+    // Update prizeId
     if (prizeId !== undefined) {
       updateData.prizeId = prizeId === null ? null : prizeId;
     }
@@ -69,7 +85,7 @@ export async function PUT(
     await db.adminLog.create({
       data: {
         action: 'update_code',
-        details: `Updated code ${existing.value} to status: ${status ?? 'unchanged'}`,
+        details: `Updated code ${existing.value}: status=${status ?? 'unchanged'}, result=${result ?? 'unchanged'}, prizeId=${prizeId ?? 'unchanged'}`,
         adminName: 'admin',
         campaignId: existing.campaignId,
       },

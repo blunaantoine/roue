@@ -49,7 +49,8 @@ model Prize {
 model Code {
   id        String   @id @default(cuid())
   value     String   @unique
-  status    String   @default("unused") // unused, used, winning, losing
+  status    String   @default("unused") // unused, used
+  result    String?  // null, winning, losing
   prizeId   String?
   prize     Prize?   @relation(fields: [prizeId], references: [id])
   createdAt DateTime @default(now())

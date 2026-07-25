@@ -35,32 +35,35 @@ import { Code, Prize } from '@/types';
 import { toast } from 'sonner';
 import { Plus, Pencil, Loader2, QrCode } from 'lucide-react';
 
+// Status colors & labels (usage: unused / used)
 const statusColors: Record<string, string> = {
   unused: 'secondary',
   used: 'default',
-  winning: 'default',
-  losing: 'destructive',
 };
 
 const statusLabels: Record<string, string> = {
   unused: 'Non utilisé',
   used: 'Utilisé',
+};
+
+// Result colors & labels (outcome: winning / losing / null)
+const resultColors: Record<string, string> = {
+  winning: 'default',
+  losing: 'destructive',
+};
+
+const resultLabels: Record<string, string> = {
   winning: 'Gagnant',
   losing: 'Perdant',
 };
 
-const statusOptions: { value: string; label: string; color: string }[] = [
-  { value: 'unused', label: 'Non utilisé', color: 'bg-green-500' },
-  { value: 'used', label: 'Utilisé', color: 'bg-blue-500' },
-  { value: 'winning', label: 'Gagnant', color: 'bg-amber-500' },
-  { value: 'losing', label: 'Perdant', color: 'bg-red-500' },
-];
-
-interface StatusEditState {
+interface EditState {
   codeId: string;
   codeValue: string;
   currentStatus: string;
+  currentResult: string | null;
   newStatus: string;
+  newResult: string | null;
   selectedPrizeId: string;
 }
 
@@ -69,10 +72,11 @@ export function CodePanel() {
   const [codes, setCodes] = useState<Code[]>([]);
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [resultFilter, setResultFilter] = useState<string>('all');
   const [showGenerate, setShowGenerate] = useState(false);
-  const [showStatusEdit, setShowStatusEdit] = useState(false);
-  const [statusEditData, setStatusEditData] = useState<StatusEditState | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editData, setEditData] = useState<EditState | null>(null);
 
   const [generateData, setGenerateData] = useState({
     count: 10,
@@ -87,8 +91,10 @@ export function CodePanel() {
     }
     try {
       setLoading(true);
-      const statusParam = filter !== 'all' ? filter : undefined;
-      const data = await codesApi.list(currentCampaignId, statusParam);
+      const params: { status?: string; result?: string } = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (resultFilter !== 'all') params.result = resultFilter;
+      const data = await codesApi.list(currentCampaignId, params);
       setCodes(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error('Erreur lors du chargement des codes');
@@ -109,7 +115,7 @@ export function CodePanel() {
 
   useEffect(() => {
     loadCodes();
-  }, [currentCampaignId, filter]);
+  }, [currentCampaignId, statusFilter, resultFilter]);
 
   useEffect(() => {
     loadPrizes();
@@ -121,7 +127,7 @@ export function CodePanel() {
       return;
     }
     if (generateData.count < 1 || generateData.count > 1000) {
-      toast.error('Le nombre de codes doit être entre 1 et 1000');
+      toast.error('Le nombre de tickets doit être entre 1 et 1000');
       return;
     }
     try {
@@ -130,7 +136,7 @@ export function CodePanel() {
         count: generateData.count,
         prizeIds: generateData.prizeIds.length > 0 ? generateData.prizeIds : undefined,
       });
-      toast.success(`${generateData.count} codes générés`);
+      toast.success(`${generateData.count} tickets générés`);
       setShowGenerate(false);
       setGenerateData({ count: 10, prizeIds: [] });
       await loadCodes();
@@ -139,61 +145,83 @@ export function CodePanel() {
     }
   }
 
-  function openStatusEdit(code: Code) {
-    setStatusEditData({
+  function openEdit(code: Code) {
+    setEditData({
       codeId: code.id,
       codeValue: code.value,
       currentStatus: code.status,
+      currentResult: code.result,
       newStatus: code.status,
+      newResult: code.result,
       selectedPrizeId: code.prizeId || '',
     });
-    setShowStatusEdit(true);
+    setShowEdit(true);
   }
 
-  async function handleStatusUpdate() {
-    if (!statusEditData) return;
-
-    const { codeId, newStatus, selectedPrizeId } = statusEditData;
+  async function handleEditSubmit() {
+    if (!editData) return;
 
     try {
       const updatePayload: Record<string, unknown> = {
-        status: newStatus,
+        status: editData.newStatus,
+        result: editData.newResult,
       };
 
-      // When status is "winning", assign the selected prize
-      if (newStatus === 'winning') {
-        if (!selectedPrizeId) {
+      // When status is "unused", force result to null and clear prize
+      if (editData.newStatus === 'unused') {
+        updatePayload.result = null;
+        updatePayload.prizeId = null;
+      }
+
+      // When result is "winning", prize is required
+      if (editData.newResult === 'winning') {
+        if (!editData.selectedPrizeId) {
           toast.error('Veuillez sélectionner un lot pour un ticket gagnant');
           return;
         }
-        updatePayload.prizeId = selectedPrizeId;
-      } else if (newStatus === 'losing') {
-        // Losing codes: clear prize assignment
-        updatePayload.prizeId = null;
-      } else if (newStatus === 'unused') {
-        // Reset code: clear prize and usage date
-        updatePayload.prizeId = null;
-      } else if (newStatus === 'used') {
-        // Just used: keep existing prize or clear
-        updatePayload.prizeId = selectedPrizeId || null;
+        updatePayload.prizeId = editData.selectedPrizeId;
       }
 
-      await codesApi.update(codeId, updatePayload);
-      toast.success(`Statut du ticket ${statusEditData.codeValue} modifié avec succès`);
-      setShowStatusEdit(false);
-      setStatusEditData(null);
+      // When result is "losing", clear prize
+      if (editData.newResult === 'losing') {
+        updatePayload.prizeId = null;
+      }
+
+      // When result is null (used but no result), keep or clear prize
+      if (editData.newResult === null && editData.newStatus === 'used') {
+        updatePayload.prizeId = editData.selectedPrizeId || null;
+      }
+
+      await codesApi.update(editData.codeId, updatePayload);
+      toast.success(`Ticket ${editData.codeValue} modifié avec succès`);
+      setShowEdit(false);
+      setEditData(null);
       await loadCodes();
     } catch (error) {
-      toast.error('Erreur lors de la modification du statut');
+      toast.error('Erreur lors de la modification');
     }
   }
 
   // Calculate statistics
   const totalCodes = codes.length;
-  const usedCodes = codes.filter((c) => c.status === 'used').length;
   const unusedCodes = codes.filter((c) => c.status === 'unused').length;
-  const winningCodes = codes.filter((c) => c.status === 'winning').length;
-  const losingCodes = codes.filter((c) => c.status === 'losing').length;
+  const usedCodes = codes.filter((c) => c.status === 'used').length;
+  const winningCodes = codes.filter((c) => c.result === 'winning').length;
+  const losingCodes = codes.filter((c) => c.result === 'losing').length;
+
+  // Determine display badge for result
+  function getResultBadge(code: Code) {
+    if (code.status === 'unused') {
+      return <Badge variant="secondary" className="text-xs">En attente</Badge>;
+    }
+    if (code.result === 'winning') {
+      return <Badge variant={resultColors.winning as 'default' | 'destructive'} className="text-xs bg-amber-100 text-amber-800 border-amber-300">{resultLabels.winning}</Badge>;
+    }
+    if (code.result === 'losing') {
+      return <Badge variant={resultColors.losing as 'default' | 'destructive'} className="text-xs">{resultLabels.losing}</Badge>;
+    }
+    return <Badge variant="outline" className="text-xs">Non défini</Badge>;
+  }
 
   if (!currentCampaignId) {
     return (
@@ -236,14 +264,22 @@ export function CodePanel() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Gestion des Tickets</CardTitle>
           <div className="flex gap-2">
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[130px] h-9">
+                <SelectValue placeholder="Utilisation" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous</SelectItem>
                 <SelectItem value="unused">Non utilisés</SelectItem>
                 <SelectItem value="used">Utilisés</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={resultFilter} onValueChange={setResultFilter}>
+              <SelectTrigger className="w-[130px] h-9">
+                <SelectValue placeholder="Résultat" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
                 <SelectItem value="winning">Gagnants</SelectItem>
                 <SelectItem value="losing">Perdants</SelectItem>
               </SelectContent>
@@ -269,7 +305,8 @@ export function CodePanel() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Code</TableHead>
-                    <TableHead>Statut</TableHead>
+                    <TableHead>Utilisation</TableHead>
+                    <TableHead>Résultat</TableHead>
                     <TableHead>Lot</TableHead>
                     <TableHead>Date création</TableHead>
                     <TableHead>Date utilisation</TableHead>
@@ -286,9 +323,12 @@ export function CodePanel() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusColors[code.status] as 'default' | 'secondary' | 'destructive'}>
+                        <Badge variant={statusColors[code.status] as 'default' | 'secondary'}>
                           {statusLabels[code.status]}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {getResultBadge(code)}
                       </TableCell>
                       <TableCell>{code.prize?.name || '-'}</TableCell>
                       <TableCell>{new Date(code.createdAt).toLocaleDateString('fr-FR')}</TableCell>
@@ -297,7 +337,7 @@ export function CodePanel() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => openStatusEdit(code)}
+                          onClick={() => openEdit(code)}
                           className="h-7 gap-1"
                         >
                           <Pencil className="size-3" />
@@ -371,36 +411,57 @@ export function CodePanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Status Edit Dialog */}
-      <Dialog open={showStatusEdit} onOpenChange={(open) => {
+      {/* Edit Dialog */}
+      <Dialog open={showEdit} onOpenChange={(open) => {
         if (!open) {
-          setShowStatusEdit(false);
-          setStatusEditData(null);
+          setShowEdit(false);
+          setEditData(null);
         }
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Modifier le statut du ticket</DialogTitle>
+            <DialogTitle>Modifier le ticket</DialogTitle>
             <DialogDescription>
-              Ticket : <span className="font-mono font-bold">{statusEditData?.codeValue}</span>
-              — Statut actuel : <Badge variant={statusColors[statusEditData?.currentStatus || 'unused'] as 'default' | 'secondary' | 'destructive'}>
-                {statusLabels[statusEditData?.currentStatus || 'unused']}
-              </Badge>
+              Ticket : <span className="font-mono font-bold">{editData?.codeValue}</span>
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Current state summary */}
+            <div className="flex items-center gap-3 rounded-lg border p-3 bg-muted/50">
+              <span className="text-sm text-muted-foreground">Actuellement :</span>
+              <Badge variant={statusColors[editData?.currentStatus || 'unused'] as 'default' | 'secondary'}>
+                {statusLabels[editData?.currentStatus || 'unused']}
+              </Badge>
+              {editData?.currentResult && (
+                <Badge
+                  variant={resultColors[editData.currentResult] as 'default' | 'destructive'}
+                  className={editData.currentResult === 'winning' ? 'bg-amber-100 text-amber-800 border-amber-300' : ''}
+                >
+                  {resultLabels[editData.currentResult]}
+                </Badge>
+              )}
+              {!editData?.currentResult && editData?.currentStatus === 'used' && (
+                <Badge variant="outline">Non défini</Badge>
+              )}
+              {editData?.currentStatus === 'unused' && (
+                <Badge variant="secondary" className="text-xs">En attente</Badge>
+              )}
+            </div>
+
+            {/* Status (utilisation) */}
             <div className="grid gap-2">
-              <Label>Nouveau statut *</Label>
+              <Label>Utilisation *</Label>
               <Select
-                value={statusEditData?.newStatus || 'unused'}
+                value={editData?.newStatus || 'unused'}
                 onValueChange={(value) => {
-                  if (statusEditData) {
-                    setStatusEditData({
-                      ...statusEditData,
-                      newStatus: value,
-                      // Clear prize selection when switching to losing/unused
-                      selectedPrizeId: value === 'losing' || value === 'unused' ? '' : statusEditData.selectedPrizeId,
-                    });
+                  if (editData) {
+                    const newEdit = { ...editData, newStatus: value };
+                    // If switching to "unused", clear result and prize
+                    if (value === 'unused') {
+                      newEdit.newResult = null;
+                      newEdit.selectedPrizeId = '';
+                    }
+                    setEditData(newEdit);
                   }
                 }}
               >
@@ -408,27 +469,76 @@ export function CodePanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div className="flex items-center gap-2">
-                        <div className={`size-2.5 rounded-full ${opt.color}`} />
-                        {opt.label}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="unused">
+                    <div className="flex items-center gap-2">
+                      <div className="size-2.5 rounded-full bg-green-500" />
+                      Non utilisé
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="used">
+                    <div className="flex items-center gap-2">
+                      <div className="size-2.5 rounded-full bg-blue-500" />
+                      Utilisé
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Prize selection - shown when status is "winning" */}
-            {statusEditData?.newStatus === 'winning' && (
+            {/* Result (résultat) — only when status is "used" */}
+            {editData?.newStatus === 'used' && (
+              <div className="grid gap-2">
+                <Label>Résultat *</Label>
+                <Select
+                  value={editData.newResult || '__none__'}
+                  onValueChange={(value) => {
+                    if (editData) {
+                      const resultValue = value === '__none__' ? null : value;
+                      const newEdit = { ...editData, newResult: resultValue };
+                      // Clear prize when switching to losing
+                      if (resultValue === 'losing') {
+                        newEdit.selectedPrizeId = '';
+                      }
+                      setEditData(newEdit);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">
+                      <div className="flex items-center gap-2">
+                        <div className="size-2.5 rounded-full bg-gray-400" />
+                        Non défini
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="winning">
+                      <div className="flex items-center gap-2">
+                        <div className="size-2.5 rounded-full bg-amber-500" />
+                        Gagnant
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="losing">
+                      <div className="flex items-center gap-2">
+                        <div className="size-2.5 rounded-full bg-red-500" />
+                        Perdant
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Prize selection — when result is "winning" */}
+            {editData?.newResult === 'winning' && (
               <div className="grid gap-2">
                 <Label>Lot associé *</Label>
                 <Select
-                  value={statusEditData.selectedPrizeId}
+                  value={editData.selectedPrizeId}
                   onValueChange={(value) => {
-                    if (statusEditData) {
-                      setStatusEditData({ ...statusEditData, selectedPrizeId: value });
+                    if (editData) {
+                      setEditData({ ...editData, selectedPrizeId: value });
                     }
                   }}
                 >
@@ -449,57 +559,32 @@ export function CodePanel() {
               </div>
             )}
 
-            {/* Prize selection for "used" status - optional */}
-            {statusEditData?.newStatus === 'used' && (
-              <div className="grid gap-2">
-                <Label>Lot associé (optionnel)</Label>
-                <Select
-                  value={statusEditData.selectedPrizeId || '__none__'}
-                  onValueChange={(value) => {
-                    if (statusEditData) {
-                      setStatusEditData({ ...statusEditData, selectedPrizeId: value === '__none__' ? '' : value });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Aucun lot" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Aucun lot</SelectItem>
-                    {prizes.filter((p) => !p.isLosing && p.active).map((prize) => (
-                      <SelectItem key={prize.id} value={prize.id}>
-                        <div className="flex items-center gap-2">
-                          <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
-                          <span>{prize.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Warning for status changes */}
-            {statusEditData && statusEditData.newStatus !== statusEditData.currentStatus && (
-              <div className="rounded-lg border p-3 bg-muted/50 text-sm">
-                {statusEditData.newStatus === 'unused' && (
+            {/* Warning messages for changes */}
+            {editData && (editData.newStatus !== editData.currentStatus || editData.newResult !== editData.currentResult) && (
+              <div className="rounded-lg border p-3 bg-muted/50 text-sm space-y-1">
+                {editData.newStatus === 'unused' && (
                   <p className="text-green-600 font-medium">
-                    ⚠ Le ticket sera réinitialisé et pourra être utilisé à nouveau. Le lot associé sera supprimé.
+                    ⚠ Le ticket sera réinitialisé : non utilisé, résultat et lot supprimés.
                   </p>
                 )}
-                {statusEditData.newStatus === 'losing' && (
-                  <p className="text-red-600 font-medium">
-                    ⚠ Le ticket sera marqué comme perdant. Le lot associé sera supprimé.
-                  </p>
-                )}
-                {statusEditData.newStatus === 'winning' && (
-                  <p className="text-amber-600 font-medium">
-                    ⚠ Le ticket sera marqué comme gagnant avec le lot sélectionné.
-                  </p>
-                )}
-                {statusEditData.newStatus === 'used' && (
+                {editData.newStatus === 'used' && editData.currentStatus === 'unused' && (
                   <p className="text-blue-600 font-medium">
                     ⚠ Le ticket sera marqué comme utilisé.
+                  </p>
+                )}
+                {editData.newResult === 'winning' && (
+                  <p className="text-amber-600 font-medium">
+                    ⚠ Le résultat sera « Gagnant » avec le lot sélectionné.
+                  </p>
+                )}
+                {editData.newResult === 'losing' && (
+                  <p className="text-red-600 font-medium">
+                    ⚠ Le résultat sera « Perdant ». Le lot associé sera supprimé.
+                  </p>
+                )}
+                {editData.newResult === null && editData.currentResult !== null && editData.newStatus === 'used' && (
+                  <p className="text-gray-600 font-medium">
+                    ⚠ Le résultat sera effacé (ticket utilisé sans résultat défini).
                   </p>
                 )}
               </div>
@@ -507,15 +592,15 @@ export function CodePanel() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => {
-              setShowStatusEdit(false);
-              setStatusEditData(null);
+              setShowEdit(false);
+              setEditData(null);
             }}>
               Annuler
             </Button>
             <Button
-              onClick={handleStatusUpdate}
+              onClick={handleEditSubmit}
               disabled={
-                statusEditData?.newStatus === 'winning' && !statusEditData?.selectedPrizeId
+                editData?.newResult === 'winning' && !editData?.selectedPrizeId
               }
             >
               Confirmer

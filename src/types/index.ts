@@ -19,7 +19,8 @@ export interface Prize {
 export interface Code {
   id: string;
   value: string;
-  status: 'unused' | 'used' | 'winning' | 'losing';
+  status: 'unused' | 'used';
+  result: 'winning' | 'losing' | null;
   prizeId?: string;
   prize?: Prize;
   campaignId: string;

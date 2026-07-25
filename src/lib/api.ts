@@ -37,7 +37,13 @@ export const prizesApi = {
 
 // Codes - API returns raw array for list, raw object for get/update, object with count+codes for generate
 export const codesApi = {
-  list: (campaignId?: string, status?: string) => apiFetch<any[]>(`/codes${campaignId ? `?campaignId=${campaignId}` : ''}${status ? `&status=${status}` : ''}`),
+  list: (campaignId?: string, params?: { status?: string; result?: string }) => {
+    const queryParams = new URLSearchParams();
+    if (campaignId) queryParams.set('campaignId', campaignId);
+    if (params?.status) queryParams.set('status', params.status);
+    if (params?.result) queryParams.set('result', params.result);
+    return apiFetch<any[]>(`/codes?${queryParams.toString()}`);
+  },
   generate: (data: { campaignId: string; count: number; prizeIds?: string[] }) => apiFetch<any>('/codes', { method: 'POST', body: JSON.stringify(data) }),
   get: (id: string) => apiFetch<any>(`/codes/${id}`),
   update: (id: string, data: any) => apiFetch<any>(`/codes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

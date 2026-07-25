@@ -19,15 +19,13 @@ export async function GET(request: NextRequest) {
     // Total codes generated
     const totalCodes = await db.code.count({ where: { campaignId } });
 
-    // Codes used vs unused
+    // Usage status: unused vs used
     const unusedCodes = await db.code.count({ where: { campaignId, status: 'unused' } });
-    const usedCodes = totalCodes - unusedCodes;
+    const usedCodes = await db.code.count({ where: { campaignId, status: 'used' } });
 
-    // Winners count (codes with status "winning")
-    const winningCodes = await db.code.count({ where: { campaignId, status: 'winning' } });
-
-    // Losers count (codes with status "losing")
-    const losingCodes = await db.code.count({ where: { campaignId, status: 'losing' } });
+    // Result: winning vs losing
+    const winningCodes = await db.code.count({ where: { campaignId, result: 'winning' } });
+    const losingCodes = await db.code.count({ where: { campaignId, result: 'losing' } });
 
     // Prize distribution (how many won each prize)
     const prizeDistribution = await db.participation.groupBy({
@@ -83,15 +81,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       campaignId,
       campaignName: campaign.name,
-      codes: {
-        total: totalCodes,
-        unused: unusedCodes,
-        used: usedCodes,
-      },
-      results: {
-        winners: winningCodes,
-        losers: losingCodes,
-      },
+      totalCodes,
+      unusedCodes,
+      usedCodes,
+      winnersCount: winningCodes,
+      losersCount: losingCodes,
       prizeDistribution: distributionWithNames,
       losingParticipations,
       recentParticipations,

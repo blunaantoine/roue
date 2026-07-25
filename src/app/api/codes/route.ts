@@ -33,12 +33,13 @@ async function generateUniqueCodeValues(count: number): Promise<string[]> {
   return codes;
 }
 
-// GET: List codes (filter by campaignId, status query params)
+// GET: List codes (filter by campaignId, status or result query params)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get('campaignId');
     const status = searchParams.get('status');
+    const result = searchParams.get('result');
 
     if (!campaignId) {
       return NextResponse.json({ error: 'campaignId query param is required' }, { status: 400 });
@@ -47,6 +48,9 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { campaignId };
     if (status) {
       where.status = status;
+    }
+    if (result) {
+      where.result = result;
     }
 
     const codes = await db.code.findMany({
@@ -88,10 +92,8 @@ export async function POST(request: NextRequest) {
     const codeValues = await generateUniqueCodeValues(count);
 
     // If prizeIds are provided, assign prizes to codes
-    // prizeIds should be an array where each element is either a prizeId string or null
     const validatedPrizeIds: (string | null)[] = [];
     if (prizeIds && Array.isArray(prizeIds)) {
-      // Validate that all prizeIds exist and belong to this campaign
       for (const prizeId of prizeIds) {
         if (prizeId === null) {
           validatedPrizeIds.push(null);
@@ -129,7 +131,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Return the generated code values
     return NextResponse.json({
       count: createdCodes.count,
       codes: codesToCreate,

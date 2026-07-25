@@ -74,12 +74,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update code status
-    const codeStatus = isWinning ? 'winning' : 'losing';
+    // Update code: set status to used, result to winning/losing
+    const codeResult = isWinning ? 'winning' : 'losing';
     await db.code.update({
       where: { id: code.id },
       data: {
-        status: codeStatus,
+        status: 'used',
+        result: codeResult,
         usedAt: new Date(),
         prizeId: wonPrizeId,
       },
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
       codeId: code.id,
       campaignId: code.campaignId,
       isWinning,
-      codeStatus,
+      codeResult,
       prize: wonPrize,
       prizeIndex,
       animation: {

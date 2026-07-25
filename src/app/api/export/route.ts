@@ -91,7 +91,7 @@ function convertToCSV(data: unknown[], type: string): string {
 function getHeaders(type: string): string[] {
   switch (type) {
     case 'codes':
-      return ['id', 'value', 'status', 'prizeId', 'prizeName', 'campaignId', 'createdAt', 'usedAt'];
+      return ['id', 'value', 'status', 'result', 'prizeId', 'prizeName', 'campaignId', 'createdAt', 'usedAt'];
     case 'participations':
       return ['id', 'participantName', 'participantPhone', 'codeValue', 'prizeId', 'prizeName', 'campaignId', 'createdAt'];
     case 'contacts':
