@@ -33,7 +33,7 @@ import { codesApi, prizesApi } from '@/lib/api';
 import { useAppStore } from '@/stores/app-store';
 import { Code, Prize } from '@/types';
 import { toast } from 'sonner';
-import { Plus, RefreshCw, Loader2, QrCode } from 'lucide-react';
+import { Plus, Pencil, Loader2, QrCode } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   unused: 'secondary',
@@ -49,6 +49,21 @@ const statusLabels: Record<string, string> = {
   losing: 'Perdant',
 };
 
+const statusOptions: { value: string; label: string; color: string }[] = [
+  { value: 'unused', label: 'Non utilisé', color: 'bg-green-500' },
+  { value: 'used', label: 'Utilisé', color: 'bg-blue-500' },
+  { value: 'winning', label: 'Gagnant', color: 'bg-amber-500' },
+  { value: 'losing', label: 'Perdant', color: 'bg-red-500' },
+];
+
+interface StatusEditState {
+  codeId: string;
+  codeValue: string;
+  currentStatus: string;
+  newStatus: string;
+  selectedPrizeId: string;
+}
+
 export function CodePanel() {
   const { currentCampaignId } = useAppStore();
   const [codes, setCodes] = useState<Code[]>([]);
@@ -56,7 +71,8 @@ export function CodePanel() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [showGenerate, setShowGenerate] = useState(false);
-  const [showReset, setShowReset] = useState<string | null>(null);
+  const [showStatusEdit, setShowStatusEdit] = useState(false);
+  const [statusEditData, setStatusEditData] = useState<StatusEditState | null>(null);
 
   const [generateData, setGenerateData] = useState({
     count: 10,
@@ -123,14 +139,52 @@ export function CodePanel() {
     }
   }
 
-  async function handleResetToLosing(id: string) {
+  function openStatusEdit(code: Code) {
+    setStatusEditData({
+      codeId: code.id,
+      codeValue: code.value,
+      currentStatus: code.status,
+      newStatus: code.status,
+      selectedPrizeId: code.prizeId || '',
+    });
+    setShowStatusEdit(true);
+  }
+
+  async function handleStatusUpdate() {
+    if (!statusEditData) return;
+
+    const { codeId, newStatus, selectedPrizeId } = statusEditData;
+
     try {
-      await codesApi.update(id, { status: 'losing' });
-      toast.success('Code réinitialisé en perdant');
-      setShowReset(null);
+      const updatePayload: Record<string, unknown> = {
+        status: newStatus,
+      };
+
+      // When status is "winning", assign the selected prize
+      if (newStatus === 'winning') {
+        if (!selectedPrizeId) {
+          toast.error('Veuillez sélectionner un lot pour un ticket gagnant');
+          return;
+        }
+        updatePayload.prizeId = selectedPrizeId;
+      } else if (newStatus === 'losing') {
+        // Losing codes: clear prize assignment
+        updatePayload.prizeId = null;
+      } else if (newStatus === 'unused') {
+        // Reset code: clear prize and usage date
+        updatePayload.prizeId = null;
+      } else if (newStatus === 'used') {
+        // Just used: keep existing prize or clear
+        updatePayload.prizeId = selectedPrizeId || null;
+      }
+
+      await codesApi.update(codeId, updatePayload);
+      toast.success(`Statut du ticket ${statusEditData.codeValue} modifié avec succès`);
+      setShowStatusEdit(false);
+      setStatusEditData(null);
       await loadCodes();
     } catch (error) {
-      toast.error('Erreur lors de la réinitialisation');
+      toast.error('Erreur lors de la modification du statut');
     }
   }
 
@@ -180,7 +234,7 @@ export function CodePanel() {
       {/* Main Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Gestion des Codes</CardTitle>
+          <CardTitle>Gestion des Tickets</CardTitle>
           <div className="flex gap-2">
             <Select value={filter} onValueChange={setFilter}>
               <SelectTrigger className="w-[140px] h-9">
@@ -207,7 +261,7 @@ export function CodePanel() {
             </div>
           ) : codes.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Aucun code trouvé. Génère des codes pour commencer.
+              Aucun ticket trouvé. Génère des tickets pour commencer.
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto">
@@ -240,17 +294,15 @@ export function CodePanel() {
                       <TableCell>{new Date(code.createdAt).toLocaleDateString('fr-FR')}</TableCell>
                       <TableCell>{code.usedAt ? new Date(code.usedAt).toLocaleDateString('fr-FR') : '-'}</TableCell>
                       <TableCell className="text-right">
-                        {code.status !== 'losing' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setShowReset(code.id)}
-                            className="h-7 gap-1"
-                          >
-                            <RefreshCw className="size-3" />
-                            Réinitialiser
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openStatusEdit(code)}
+                          className="h-7 gap-1"
+                        >
+                          <Pencil className="size-3" />
+                          Modifier
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -265,12 +317,12 @@ export function CodePanel() {
       <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Générer des Codes</DialogTitle>
-            <DialogDescription>Créez de nouveaux codes pour la campagne.</DialogDescription>
+            <DialogTitle>Générer des Tickets</DialogTitle>
+            <DialogDescription>Créez de nouveaux tickets pour la campagne.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="code-count">Nombre de codes *</Label>
+              <Label htmlFor="code-count">Nombre de tickets *</Label>
               <Input
                 id="code-count"
                 type="number"
@@ -319,21 +371,154 @@ export function CodePanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Reset Confirmation Dialog */}
-      <Dialog open={showReset !== null} onOpenChange={() => setShowReset(null)}>
+      {/* Status Edit Dialog */}
+      <Dialog open={showStatusEdit} onOpenChange={(open) => {
+        if (!open) {
+          setShowStatusEdit(false);
+          setStatusEditData(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Réinitialiser le code</DialogTitle>
+            <DialogTitle>Modifier le statut du ticket</DialogTitle>
             <DialogDescription>
-              Ce code sera marqué comme perdant. Cette action est irréversible.
+              Ticket : <span className="font-mono font-bold">{statusEditData?.codeValue}</span>
+              — Statut actuel : <Badge variant={statusColors[statusEditData?.currentStatus || 'unused'] as 'default' | 'secondary' | 'destructive'}>
+                {statusLabels[statusEditData?.currentStatus || 'unused']}
+              </Badge>
             </DialogDescription>
           </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Nouveau statut *</Label>
+              <Select
+                value={statusEditData?.newStatus || 'unused'}
+                onValueChange={(value) => {
+                  if (statusEditData) {
+                    setStatusEditData({
+                      ...statusEditData,
+                      newStatus: value,
+                      // Clear prize selection when switching to losing/unused
+                      selectedPrizeId: value === 'losing' || value === 'unused' ? '' : statusEditData.selectedPrizeId,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <div className={`size-2.5 rounded-full ${opt.color}`} />
+                        {opt.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Prize selection - shown when status is "winning" */}
+            {statusEditData?.newStatus === 'winning' && (
+              <div className="grid gap-2">
+                <Label>Lot associé *</Label>
+                <Select
+                  value={statusEditData.selectedPrizeId}
+                  onValueChange={(value) => {
+                    if (statusEditData) {
+                      setStatusEditData({ ...statusEditData, selectedPrizeId: value });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un lot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prizes.filter((p) => !p.isLosing && p.active).map((prize) => (
+                      <SelectItem key={prize.id} value={prize.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
+                          <span>{prize.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Prize selection for "used" status - optional */}
+            {statusEditData?.newStatus === 'used' && (
+              <div className="grid gap-2">
+                <Label>Lot associé (optionnel)</Label>
+                <Select
+                  value={statusEditData.selectedPrizeId || '__none__'}
+                  onValueChange={(value) => {
+                    if (statusEditData) {
+                      setStatusEditData({ ...statusEditData, selectedPrizeId: value === '__none__' ? '' : value });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Aucun lot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Aucun lot</SelectItem>
+                    {prizes.filter((p) => !p.isLosing && p.active).map((prize) => (
+                      <SelectItem key={prize.id} value={prize.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
+                          <span>{prize.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Warning for status changes */}
+            {statusEditData && statusEditData.newStatus !== statusEditData.currentStatus && (
+              <div className="rounded-lg border p-3 bg-muted/50 text-sm">
+                {statusEditData.newStatus === 'unused' && (
+                  <p className="text-green-600 font-medium">
+                    ⚠ Le ticket sera réinitialisé et pourra être utilisé à nouveau. Le lot associé sera supprimé.
+                  </p>
+                )}
+                {statusEditData.newStatus === 'losing' && (
+                  <p className="text-red-600 font-medium">
+                    ⚠ Le ticket sera marqué comme perdant. Le lot associé sera supprimé.
+                  </p>
+                )}
+                {statusEditData.newStatus === 'winning' && (
+                  <p className="text-amber-600 font-medium">
+                    ⚠ Le ticket sera marqué comme gagnant avec le lot sélectionné.
+                  </p>
+                )}
+                {statusEditData.newStatus === 'used' && (
+                  <p className="text-blue-600 font-medium">
+                    ⚠ Le ticket sera marqué comme utilisé.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowReset(null)}>
+            <Button variant="ghost" onClick={() => {
+              setShowStatusEdit(false);
+              setStatusEditData(null);
+            }}>
               Annuler
             </Button>
-            <Button variant="destructive" onClick={() => showReset && handleResetToLosing(showReset)}>
-              Réinitialiser
+            <Button
+              onClick={handleStatusUpdate}
+              disabled={
+                statusEditData?.newStatus === 'winning' && !statusEditData?.selectedPrizeId
+              }
+            >
+              Confirmer
             </Button>
           </DialogFooter>
         </DialogContent>
