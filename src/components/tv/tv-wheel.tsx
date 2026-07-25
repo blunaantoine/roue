@@ -19,6 +19,24 @@ const DEFAULT_SECTOR_COLORS = [
   '#8E44AD', '#16A085', '#D35400', '#C0392B',
 ];
 
+// Helper: get contrast color for text over a sector color
+function getContrastTextColor(bgColor: string): string {
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#1a1a1a' : '#FFFFFF';
+}
+
+// Helper: determine optimal font size for TV based on sector angle
+function getTVFontSize(sectorAngleDeg: number): number {
+  if (sectorAngleDeg >= 60) return 22;
+  if (sectorAngleDeg >= 45) return 18;
+  if (sectorAngleDeg >= 30) return 15;
+  return 12;
+}
+
 export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDuration }: TVWheelProps) {
   const [rotationAngle, setRotationAngle] = useState(0);
   const [highlightedSector, setHighlightedSector] = useState<number | null>(null);
@@ -47,8 +65,8 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
       const color = prize.color || DEFAULT_SECTOR_COLORS[index % DEFAULT_SECTOR_COLORS.length];
       
       // SVG arc path calculation
-      const radius = 180;
-      const innerRadius = 40;
+      const radius = 175;
+      const innerRadius = 35;
       const cx = 200;
       const cy = 200;
       
@@ -68,10 +86,16 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
       const x2Inner = cx + innerRadius * Math.cos(startRad);
       const y2Inner = cy + innerRadius * Math.sin(startRad);
       
-      // Text position
-      const textRadius = radius * 0.65;
+      // Text position - at 60% of radius for better visibility
+      const textRadius = radius * 0.6;
       const textX = cx + textRadius * Math.cos(midRad);
       const textY = cy + textRadius * Math.sin(midRad);
+      
+      // Determine text color for contrast
+      const textColor = prize.isLosing ? '#aaaaaa' : getContrastTextColor(color);
+      
+      // Determine font size based on sector angle
+      const fontSize = getTVFontSize(sectorAngle);
       
       const largeArcFlag = sectorAngle > 180 ? 1 : 0;
       
@@ -83,13 +107,21 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
         'Z',
       ].join(' ');
 
+      // Don't truncate labels too aggressively for TV display
+      const label = prize.sectorLabel || prize.name;
+      const maxChars = sectorAngle >= 45 ? 15 : sectorAngle >= 30 ? 10 : 7;
+      const displayLabel = label.length > maxChars ? label.substring(0, maxChars - 1) + '…' : label;
+
       return {
         path,
         color,
-        label: prize.sectorLabel || prize.name,
+        label: displayLabel,
+        fullLabel: label,
         textX,
         textY,
         midAngle,
+        textColor,
+        fontSize,
         prize,
         index,
       };
@@ -104,7 +136,6 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
     prevIsSpinningRef.current = isSpinning;
 
     if (isSpinning && finalAngle !== undefined && spinDuration) {
-      // Spin started - compute target angle
       const minRotations = wheelConfig?.minRotations || 5;
       const maxRotations = wheelConfig?.maxRotations || 10;
       const rotations = minRotations + (maxRotations - minRotations) * (finalAngle / 360);
@@ -113,7 +144,6 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
       setRotationAngle(targetAngle);
       setHighlightedSector(null);
     } else if (!isSpinning && finalAngle !== undefined && activePrizes.length > 0) {
-      // Spin stopped - highlight winning sector
       const normalizedAngle = ((360 - (finalAngle % 360)) + 360) % 360;
       const sectorIndex = Math.floor(normalizedAngle / sectorAngle) % activePrizes.length;
       setHighlightedSector(sectorIndex);
@@ -134,9 +164,9 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
     const cx = 200;
     const pointerY = 8;
     return [
-      `M ${cx - 12} ${pointerY}`,
-      `L ${cx + 12} ${pointerY}`,
-      `L ${cx} ${pointerY + 30}`,
+      `M ${cx - 14} ${pointerY}`,
+      `L ${cx + 14} ${pointerY}`,
+      `L ${cx} ${pointerY + 35}`,
       'Z',
     ].join(' ');
   }, []);
@@ -144,7 +174,6 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
   const bgColor = wheelConfig?.backgroundColor || '#1a1a2e';
   const outerRingColor = wheelConfig?.outerRingColor || '#FFD700';
   const centerColor = wheelConfig?.centerColor || '#2d2d44';
-  const textColor = wheelConfig?.textColor || '#FFFFFF';
   const pointerColor = wheelConfig?.pointerColor || '#FF0000';
 
   if (activePrizes.length === 0) {
@@ -200,51 +229,75 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
           const dotR = 188;
           const dx = 200 + dotR * Math.cos(dotAngle);
           const dy = 200 + dotR * Math.sin(dotAngle);
-          return <circle key={`dot-${index}`} cx={dx} cy={dy} r="4" fill={outerRingColor} />;
+          return <circle key={`dot-${index}`} cx={dx} cy={dy} r="5" fill={outerRingColor} />;
         })}
         
-        {/* Sectors */}
+        {/* Sectors with labels */}
         {sectors.map((sector, index) => (
           <g key={`sector-${index}`}>
+            {/* Sector background */}
             <path
               d={sector.path}
               fill={sector.color}
-              stroke="rgba(0,0,0,0.3)"
-              strokeWidth="1"
-              opacity={highlightedSector === index ? 1 : 0.85}
+              stroke="rgba(0,0,0,0.4)"
+              strokeWidth="2"
+              opacity={highlightedSector === index ? 1 : 0.9}
             />
             {/* Highlight flash */}
             {highlightedSector === index && (
               <path
                 d={sector.path}
-                fill="rgba(255, 255, 255, 0.3)"
+                fill="rgba(255, 255, 255, 0.35)"
                 className="animate-pulse"
               />
             )}
-            {/* Sector label */}
+            
+            {/* ===== LABEL WITH OUTLINE FOR VISIBILITY ===== */}
+            {/* Shadow/outline layer for contrast */}
             <text
               x={sector.textX}
               y={sector.textY}
-              fill={textColor}
-              fontSize={wheelConfig?.fontSize || 14}
+              fill="rgba(0,0,0,0.9)"
+              fontSize={sector.fontSize + 2}
+              fontWeight="900"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              transform={`rotate(${sector.midAngle}, ${sector.textX}, ${sector.textY})`}
+              style={{ 
+                pointerEvents: 'none',
+                stroke: 'rgba(0,0,0,0.8)',
+                strokeWidth: 3,
+                strokeLinejoin: 'round',
+                paintOrder: 'stroke fill',
+              }}
+            >
+              {sector.label}
+            </text>
+            {/* Main text layer */}
+            <text
+              x={sector.textX}
+              y={sector.textY}
+              fill={sector.textColor}
+              fontSize={sector.fontSize}
               fontWeight="bold"
               textAnchor="middle"
               dominantBaseline="middle"
               transform={`rotate(${sector.midAngle}, ${sector.textX}, ${sector.textY})`}
               style={{ pointerEvents: 'none' }}
             >
-              {sector.label.length > 10 ? sector.label.substring(0, 10) + '...' : sector.label}
+              {sector.label}
             </text>
           </g>
         ))}
         
         {/* Center circle */}
-        <circle cx="200" cy="200" r="35" fill={centerColor} stroke={outerRingColor} strokeWidth="3" />
+        <circle cx="200" cy="200" r="32" fill={centerColor} stroke={outerRingColor} strokeWidth="4" />
+        <circle cx="200" cy="200" r="28" fill="none" stroke="rgba(255,215,0,0.3)" strokeWidth="1" />
         <text
           x="200"
           y="200"
           fill={outerRingColor}
-          fontSize="10"
+          fontSize="12"
           fontWeight="bold"
           textAnchor="middle"
           dominantBaseline="middle"
@@ -255,10 +308,10 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
 
       {/* Pointer (fixed, not rotating) */}
       <svg
-        viewBox="0 0 400 50"
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[80px] h-[50px] z-10"
+        viewBox="0 0 400 60"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[90px] h-[60px] z-10"
       >
-        <path d={pointerSvg} fill={pointerColor} stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+        <path d={pointerSvg} fill={pointerColor} stroke="rgba(0,0,0,0.5)" strokeWidth="2" />
       </svg>
 
       {/* Spinning indicator */}
@@ -284,7 +337,7 @@ export function TVWheel({ prizes, wheelConfig, isSpinning, finalAngle, spinDurat
             exit={{ opacity: 0, y: 20 }}
             className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm text-gray-900 px-8 py-3 rounded-full font-bold text-xl shadow-lg"
           >
-            🎯 {sectors[highlightedSector].prize.name}
+            🎯 {sectors[highlightedSector].fullLabel}
           </motion.div>
         )}
       </AnimatePresence>
