@@ -298,7 +298,12 @@ export function PrizePanel() {
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{prize.name}</TableCell>
-                        <TableCell>{prize.probability}%</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{prize.probability}</span>
+                            <span className="text-xs text-muted-foreground">poids</span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant={prize.isLosing ? 'destructive' : 'default'}>
                             {prize.isLosing ? 'Perdant' : 'Gagnant'}
@@ -372,15 +377,18 @@ export function PrizePanel() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="prize-probability">Probabilité (%)</Label>
+                <Label htmlFor="prize-probability">Probabilité (poids)</Label>
                 <Input
                   id="prize-probability"
                   type="number"
-                  min={0}
+                  min={1}
                   max={100}
                   value={formData.probability}
                   onChange={(e) => setFormData({ ...formData, probability: Number(e.target.value) })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Poids relatif pour la sélection aléatoire. La chance réelle = probabilité de ce lot ÷ somme de toutes les probabilités.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="prize-sector-label">Label du secteur</Label>
@@ -407,6 +415,16 @@ export function PrizePanel() {
                 />
                 <Label>Lot perdant</Label>
               </div>
+              {formData.isLosing && (
+                <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/50 text-sm text-red-700 dark:text-red-400">
+                  ⚠ Ce lot sera considéré comme une perte. Quand le joueur tombe sur ce secteur, il ne remporte rien.
+                </div>
+              )}
+              {!formData.isLosing && formData.name && (
+                <div className="rounded-lg border p-3 bg-green-50 dark:bg-green-950/50 text-sm text-green-700 dark:text-green-400">
+                  ✅ Ce lot est gagnant. Le joueur remportera le lot indiqué.
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setShowCreate(false)}>
