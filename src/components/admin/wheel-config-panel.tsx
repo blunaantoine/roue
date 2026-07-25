@@ -91,17 +91,16 @@ export function WheelConfigPanel() {
     }
   }
 
-  // Mini wheel preview
+  // Mini wheel preview — equal-sized sectors
   function renderWheelPreview() {
-    const totalProbability = prizes.reduce((sum, p) => sum + p.probability, 0);
-    if (totalProbability === 0) return null;
+    if (prizes.length === 0) return null;
 
+    const equalAngle = 360 / prizes.length;
     let currentAngle = 0;
     const segments = prizes.map((prize) => {
-      const angle = (prize.probability / totalProbability) * 360;
       const startAngle = currentAngle;
-      currentAngle += angle;
-      return { prize, startAngle, angle };
+      currentAngle += equalAngle;
+      return { prize, startAngle, angle: equalAngle };
     });
 
     return (

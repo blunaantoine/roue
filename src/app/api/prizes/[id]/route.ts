@@ -37,7 +37,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, description, color, icon, probability, isLosing, sectorLabel, sortOrder, active } = body;
+    const { name, description, color, icon, isLosing, sectorLabel, sortOrder, active } = body;
 
     const existing = await db.prize.findUnique({ where: { id } });
     if (!existing) {
@@ -51,7 +51,7 @@ export async function PUT(
         ...(description !== undefined && { description }),
         ...(color !== undefined && { color }),
         ...(icon !== undefined && { icon }),
-        ...(probability !== undefined && { probability }),
+
         ...(isLosing !== undefined && { isLosing }),
         ...(sectorLabel !== undefined && { sectorLabel }),
         ...(sortOrder !== undefined && { sortOrder }),

@@ -6,7 +6,6 @@ export interface Prize {
   description?: string;
   color: string;
   icon?: string;
-  probability: number;
   isLosing: boolean;
   sectorLabel?: string;
   sortOrder: number;

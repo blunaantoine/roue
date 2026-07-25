@@ -35,7 +35,7 @@ import { Code, Prize } from '@/types';
 import { toast } from 'sonner';
 import { Plus, Pencil, Loader2, QrCode } from 'lucide-react';
 
-// Status colors & labels (usage: unused / used)
+// Status colors & labels
 const statusColors: Record<string, string> = {
   unused: 'secondary',
   used: 'default',
@@ -46,7 +46,7 @@ const statusLabels: Record<string, string> = {
   used: 'Utilisé',
 };
 
-// Result colors & labels (outcome: winning / losing / null)
+// Result colors & labels
 const resultColors: Record<string, string> = {
   winning: 'default',
   losing: 'destructive',
@@ -80,7 +80,8 @@ export function CodePanel() {
 
   const [generateData, setGenerateData] = useState({
     count: 10,
-    prizeIds: [] as string[],
+    result: 'winning' as 'winning' | 'losing',
+    prizeId: '',
   });
 
   async function loadCodes() {
@@ -121,6 +122,16 @@ export function CodePanel() {
     loadPrizes();
   }, [currentCampaignId]);
 
+  // Auto-select first winning prize when result changes to "winning"
+  useEffect(() => {
+    if (generateData.result === 'winning' && !generateData.prizeId) {
+      const firstWinningPrize = prizes.find(p => !p.isLosing && p.active);
+      if (firstWinningPrize) {
+        setGenerateData(prev => ({ ...prev, prizeId: firstWinningPrize.id }));
+      }
+    }
+  }, [generateData.result, prizes]);
+
   async function handleGenerate() {
     if (!currentCampaignId) {
       toast.error('Sélectionnez une campagne d\'abord');
@@ -130,15 +141,20 @@ export function CodePanel() {
       toast.error('Le nombre de tickets doit être entre 1 et 1000');
       return;
     }
+    if (generateData.result === 'winning' && !generateData.prizeId) {
+      toast.error('Sélectionnez un lot pour les tickets gagnants');
+      return;
+    }
     try {
       await codesApi.generate({
         campaignId: currentCampaignId,
         count: generateData.count,
-        prizeIds: generateData.prizeIds.length > 0 ? generateData.prizeIds : undefined,
+        result: generateData.result,
+        prizeId: generateData.result === 'winning' ? generateData.prizeId : undefined,
       });
-      toast.success(`${generateData.count} tickets générés`);
+      toast.success(`${generateData.count} tickets ${generateData.result === 'winning' ? 'gagnants' : 'perdants'} générés`);
       setShowGenerate(false);
-      setGenerateData({ count: 10, prizeIds: [] });
+      setGenerateData({ count: 10, result: 'winning', prizeId: '' });
       await loadCodes();
     } catch (error) {
       toast.error('Erreur lors de la génération');
@@ -212,10 +228,17 @@ export function CodePanel() {
   // Determine display badge for result
   function getResultBadge(code: Code) {
     if (code.status === 'unused') {
+      // Show predetermined result for unused tickets
+      if (code.result === 'winning') {
+        return <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">Gagnant</Badge>;
+      }
+      if (code.result === 'losing') {
+        return <Badge variant="destructive" className="text-xs">Perdant</Badge>;
+      }
       return <Badge variant="secondary" className="text-xs">En attente</Badge>;
     }
     if (code.result === 'winning') {
-      return <Badge variant={resultColors.winning as 'default' | 'destructive'} className="text-xs bg-amber-100 text-amber-800 border-amber-300">{resultLabels.winning}</Badge>;
+      return <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">{resultLabels.winning}</Badge>;
     }
     if (code.result === 'losing') {
       return <Badge variant={resultColors.losing as 'default' | 'destructive'} className="text-xs">{resultLabels.losing}</Badge>;
@@ -232,6 +255,9 @@ export function CodePanel() {
       </Card>
     );
   }
+
+  const winningPrizes = prizes.filter(p => !p.isLosing && p.active);
+  const losingPrizes = prizes.filter(p => p.isLosing && p.active);
 
   return (
     <div className="space-y-4">
@@ -358,9 +384,38 @@ export function CodePanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Générer des Tickets</DialogTitle>
-            <DialogDescription>Créez de nouveaux tickets pour la campagne.</DialogDescription>
+            <DialogDescription>
+              Créez des tickets avec un résultat prédéterminé (gagnant ou perdant).
+              Le résultat du ticket détermine où la roue s&apos;arrêtera.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Result type selection */}
+            <div className="grid gap-2">
+              <Label>Type de ticket *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant={generateData.result === 'winning' ? 'default' : 'outline'}
+                  className={`h-auto py-3 flex flex-col items-center gap-1 ${generateData.result === 'winning' ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
+                  onClick={() => setGenerateData(prev => ({ ...prev, result: 'winning', prizeId: '' }))}
+                >
+                  <span className="text-lg">🏆</span>
+                  <span className="font-semibold">Gagnant</span>
+                  <span className="text-xs">La roue s&apos;arrête sur un lot</span>
+                </Button>
+                <Button
+                  variant={generateData.result === 'losing' ? 'default' : 'outline'}
+                  className={`h-auto py-3 flex flex-col items-center gap-1 ${generateData.result === 'losing' ? 'bg-red-500 hover:bg-red-600 text-white' : ''}`}
+                  onClick={() => setGenerateData(prev => ({ ...prev, result: 'losing', prizeId: '' }))}
+                >
+                  <span className="text-lg">💨</span>
+                  <span className="font-semibold">Perdant</span>
+                  <span className="text-xs">La roue s&apos;arrête sur &quot;Perdu&quot;</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Number of tickets */}
             <div className="grid gap-2">
               <Label htmlFor="code-count">Nombre de tickets *</Label>
               <Input
@@ -369,44 +424,87 @@ export function CodePanel() {
                 min={1}
                 max={1000}
                 value={generateData.count}
-                onChange={(e) => setGenerateData({ ...generateData, count: Number(e.target.value) })}
+                onChange={(e) => setGenerateData(prev => ({ ...prev, count: Number(e.target.value) }))}
               />
             </div>
-            <div className="grid gap-2">
-              <Label>Assigner à des lots (optionnel)</Label>
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {prizes.filter((p) => !p.isLosing).map((prize) => (
-                  <div key={prize.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={generateData.prizeIds.includes(prize.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setGenerateData({
-                            ...generateData,
-                            prizeIds: [...generateData.prizeIds, prize.id],
-                          });
-                        } else {
-                          setGenerateData({
-                            ...generateData,
-                            prizeIds: generateData.prizeIds.filter((id) => id !== prize.id),
-                          });
-                        }
-                      }}
-                      className="size-4 rounded border"
-                    />
-                    <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
-                    <span className="text-sm">{prize.name}</span>
+
+            {/* Prize selection for winning tickets */}
+            {generateData.result === 'winning' && (
+              <div className="grid gap-2">
+                <Label>Lot à attribuer *</Label>
+                {winningPrizes.length === 0 ? (
+                  <div className="rounded-lg border p-3 bg-muted/50 text-sm text-muted-foreground">
+                    Aucun lot gagnant disponible. Créez d&apos;abord des lots gagnants dans la section &quot;Lots&quot;.
                   </div>
-                ))}
+                ) : (
+                  <Select
+                    value={generateData.prizeId}
+                    onValueChange={(value) => setGenerateData(prev => ({ ...prev, prizeId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionnez un lot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {winningPrizes.map((prize) => (
+                        <SelectItem key={prize.id} value={prize.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
+                            <span>{prize.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Tous les tickets gagnants générés seront assignés à ce lot. La roue s&apos;arrêtera sur le secteur correspondant.
+                </p>
               </div>
+            )}
+
+            {/* Losing tickets info */}
+            {generateData.result === 'losing' && losingPrizes.length === 0 && (
+              <div className="rounded-lg border p-3 bg-yellow-50 dark:bg-yellow-950/50 text-sm text-yellow-700 dark:text-yellow-400">
+                Aucun secteur &quot;Perdu&quot; défini. Créez un lot avec le statut &quot;Perdant&quot; dans la section &quot;Lots&quot; pour que la roue puisse s&apos;arrêter sur un secteur perdant.
+              </div>
+            )}
+
+            {/* Summary */}
+            <div className="rounded-lg border p-3 bg-muted/50 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Résumé :</span>
+                <span className="font-medium">
+                  {generateData.count} tickets {generateData.result === 'winning' ? 'gagnants' : 'perdants'}
+                </span>
+              </div>
+              {generateData.result === 'winning' && generateData.prizeId && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-muted-foreground">Lot :</span>
+                  <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const selectedPrize = winningPrizes.find(p => p.id === generateData.prizeId);
+                      return selectedPrize ? (
+                        <>
+                          <div className="size-3 rounded" style={{ backgroundColor: selectedPrize.color }} />
+                          <span>{selectedPrize.name}</span>
+                        </>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowGenerate(false)}>
               Annuler
             </Button>
-            <Button onClick={handleGenerate}>Générer</Button>
+            <Button
+              onClick={handleGenerate}
+              disabled={generateData.result === 'winning' && !generateData.prizeId}
+            >
+              Générer
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -443,7 +541,7 @@ export function CodePanel() {
               {!editData?.currentResult && editData?.currentStatus === 'used' && (
                 <Badge variant="outline">Non défini</Badge>
               )}
-              {editData?.currentStatus === 'unused' && (
+              {editData?.currentStatus === 'unused' && !editData?.currentResult && (
                 <Badge variant="secondary" className="text-xs">En attente</Badge>
               )}
             </div>
@@ -564,27 +662,27 @@ export function CodePanel() {
               <div className="rounded-lg border p-3 bg-muted/50 text-sm space-y-1">
                 {editData.newStatus === 'unused' && (
                   <p className="text-green-600 font-medium">
-                    ⚠ Le ticket sera réinitialisé : non utilisé, résultat et lot supprimés.
+                    Le ticket sera réinitialisé : non utilisé, résultat et lot supprimés.
                   </p>
                 )}
                 {editData.newStatus === 'used' && editData.currentStatus === 'unused' && (
                   <p className="text-blue-600 font-medium">
-                    ⚠ Le ticket sera marqué comme utilisé.
+                    Le ticket sera marqué comme utilisé.
                   </p>
                 )}
                 {editData.newResult === 'winning' && (
                   <p className="text-amber-600 font-medium">
-                    ⚠ Le résultat sera « Gagnant » avec le lot sélectionné.
+                    Le résultat sera « Gagnant » avec le lot sélectionné.
                   </p>
                 )}
                 {editData.newResult === 'losing' && (
                   <p className="text-red-600 font-medium">
-                    ⚠ Le résultat sera « Perdant ». Le lot associé sera supprimé.
+                    Le résultat sera « Perdant ». Le lot associé sera supprimé.
                   </p>
                 )}
                 {editData.newResult === null && editData.currentResult !== null && editData.newStatus === 'used' && (
                   <p className="text-gray-600 font-medium">
-                    ⚠ Le résultat sera effacé (ticket utilisé sans résultat défini).
+                    Le résultat sera effacé (ticket utilisé sans résultat défini).
                   </p>
                 )}
               </div>

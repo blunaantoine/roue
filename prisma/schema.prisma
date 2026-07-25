@@ -32,7 +32,6 @@ model Prize {
   description String?
   color       String   @default("#FF6B6B")
   icon        String?
-  probability Int      @default(10)
   isLosing    Boolean  @default(false)
   sectorLabel String?
   sortOrder   Int      @default(0)

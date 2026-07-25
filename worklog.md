@@ -139,3 +139,36 @@ Stage Summary:
 - Campaign created with 5 prizes, 10 codes, 2 spins completed successfully
 - No browser errors, no dev server errors, lint passes cleanly
 - Application is fully functional and ready for use
+
+---
+Task ID: 9
+Agent: main
+Task: Remove probability system — tickets now determine winning/losing status
+
+Work Log:
+- Removed `probability Int @default(10)` from Prize model in Prisma schema
+- Ran `bun run db:push` to migrate database (accepted data loss for probability column)
+- Ran `bunx prisma generate` to regenerate Prisma Client
+- Updated TypeScript types: removed `probability` from Prize interface
+- Updated prize-panel.tsx: removed probability from table columns, create/edit form fields; replaced "Probabilité" column with "Type" column showing Gagnant/Perdant badge
+- Updated prizes API route (POST create): removed probability parameter
+- Updated prizes/[id] API route (PUT update): removed probability parameter
+- Rewrote codes API route (POST generate): changed from `{campaignId, count, prizeIds}` to `{campaignId, count, result, prizeId}` where result is "winning" or "losing"; prizeId required for winning tickets
+- Rewrote spin API route: removed `selectPrizeByProbability` function; spin result now determined by ticket's predetermined result and prizeId; for winning tickets, wheel lands on assigned prize sector; for losing tickets, wheel lands on a losing sector
+- Rewrote code-panel.tsx: redesigned generate dialog with two buttons ("🏆 Gagnant" and "💨 Perdant") to select ticket type; winning tickets require prize selection; losing tickets need no prize; includes summary section; also updated result badges for unused tickets
+- Updated wheel-config-panel.tsx: changed SVG wheel preview from probability-weighted sectors to equal-sized sectors
+- Updated api.ts: changed codesApi.generate signature from `{campaignId, count, prizeIds}` to `{campaignId, count, result, prizeId}`
+- Fixed syntax error in code-panel.tsx (missing closing parenthesis on onChange handler)
+- Lint check passed
+- Tested API endpoints: prizes listing, winning code generation, losing code generation, spin with winning code (isWinning:true, lands on Grand Prix), spin with losing code (isWinning:false, lands on losing sector)
+- Browser verification: wheel view, admin dashboard, prize panel (no probability column), code panel (new generate dialog), wheel config (equal-sized preview)
+
+Stage Summary:
+- Probability system completely removed from the platform
+- Tickets now determine winning/losing status at creation time
+- Wheel sectors are equal-sized (no probability weighting)
+- Admin generates tickets as "Gagnant" or "Perdant" batches
+- Winning tickets must be assigned to a specific prize/sector
+- The wheel just visually displays the predetermined result
+- All APIs, UIs, and database schema updated consistently
+- No browser errors, lint passes, application fully functional

@@ -69,14 +69,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Generate codes (body: { campaignId, count, prizeIds for specific codes })
+// POST: Generate codes with predetermined result
+// Body: { campaignId, count, result: "winning" | "losing", prizeId?: string }
+// - result is required: determines if the ticket is winning or losing
+// - prizeId is required when result="winning": which prize the ticket is assigned to
+// - prizeId is ignored when result="losing"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { campaignId, count, prizeIds } = body;
+    const { campaignId, count, result, prizeId } = body;
 
     if (!campaignId || !count) {
       return NextResponse.json({ error: 'campaignId and count are required' }, { status: 400 });
+    }
+
+    if (!result || (result !== 'winning' && result !== 'losing')) {
+      return NextResponse.json({ error: 'result must be "winning" or "losing"' }, { status: 400 });
     }
 
     if (count < 1 || count > 10000) {
@@ -89,32 +97,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    const codeValues = await generateUniqueCodeValues(count);
-
-    // If prizeIds are provided, assign prizes to codes
-    const validatedPrizeIds: (string | null)[] = [];
-    if (prizeIds && Array.isArray(prizeIds)) {
-      for (const prizeId of prizeIds) {
-        if (prizeId === null) {
-          validatedPrizeIds.push(null);
-        } else {
-          const prize = await db.prize.findUnique({ where: { id: prizeId } });
-          if (!prize || prize.campaignId !== campaignId) {
-            return NextResponse.json(
-              { error: `Prize ${prizeId} not found or does not belong to this campaign` },
-              { status: 400 }
-            );
-          }
-          validatedPrizeIds.push(prizeId);
-        }
+    // For winning tickets, prizeId is required and must be a valid non-losing prize
+    let validatedPrizeId: string | null = null;
+    if (result === 'winning') {
+      if (!prizeId) {
+        return NextResponse.json({ error: 'prizeId is required for winning tickets' }, { status: 400 });
       }
+      const prize = await db.prize.findUnique({ where: { id: prizeId } });
+      if (!prize || prize.campaignId !== campaignId) {
+        return NextResponse.json({ error: 'Prize not found or does not belong to this campaign' }, { status: 400 });
+      }
+      if (prize.isLosing) {
+        return NextResponse.json({ error: 'Cannot assign a losing prize to a winning ticket' }, { status: 400 });
+      }
+      validatedPrizeId = prizeId;
     }
 
-    // Create codes in batch
-    const codesToCreate = codeValues.map((value, index) => ({
+    const codeValues = await generateUniqueCodeValues(count);
+
+    // Create codes with predetermined result
+    const codesToCreate = codeValues.map((value) => ({
       value,
       campaignId,
-      prizeId: validatedPrizeIds[index] ?? null,
+      result,
+      prizeId: validatedPrizeId,
     }));
 
     const createdCodes = await db.code.createMany({
@@ -125,7 +131,7 @@ export async function POST(request: NextRequest) {
     await db.adminLog.create({
       data: {
         action: 'generate_codes',
-        details: `Generated ${count} codes for campaign ${campaignId}`,
+        details: `Generated ${count} ${result} codes for campaign ${campaignId}${validatedPrizeId ? `, prize: ${validatedPrizeId}` : ''}`,
         adminName: 'admin',
         campaignId,
       },
@@ -133,7 +139,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       count: createdCodes.count,
-      codes: codesToCreate,
+      result,
+      prizeId: validatedPrizeId,
     }, { status: 201 });
   } catch (error) {
     console.error('Error generating codes:', error);

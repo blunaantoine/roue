@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, color, icon, probability, isLosing, sectorLabel, sortOrder, active, campaignId } = body;
+    const { name, description, color, icon, isLosing, sectorLabel, sortOrder, active, campaignId } = body;
 
     if (!name || !campaignId) {
       return NextResponse.json({ error: 'Prize name and campaignId are required' }, { status: 400 });
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         description,
         color: color ?? '#FF6B6B',
         icon,
-        probability: probability ?? 10,
+
         isLosing: isLosing ?? false,
         sectorLabel,
         sortOrder: sortOrder ?? 0,

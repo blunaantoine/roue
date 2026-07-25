@@ -35,7 +35,7 @@ export const prizesApi = {
   delete: (id: string) => apiFetch<any>(`/prizes/${id}`, { method: 'DELETE' }),
 };
 
-// Codes - API returns raw array for list, raw object for get/update, object with count+codes for generate
+// Codes - API returns raw array for list, raw object for get/update, object with count+result for generate
 export const codesApi = {
   list: (campaignId?: string, params?: { status?: string; result?: string }) => {
     const queryParams = new URLSearchParams();
@@ -44,7 +44,7 @@ export const codesApi = {
     if (params?.result) queryParams.set('result', params.result);
     return apiFetch<any[]>(`/codes?${queryParams.toString()}`);
   },
-  generate: (data: { campaignId: string; count: number; prizeIds?: string[] }) => apiFetch<any>('/codes', { method: 'POST', body: JSON.stringify(data) }),
+  generate: (data: { campaignId: string; count: number; result: 'winning' | 'losing'; prizeId?: string }) => apiFetch<any>('/codes', { method: 'POST', body: JSON.stringify(data) }),
   get: (id: string) => apiFetch<any>(`/codes/${id}`),
   update: (id: string, data: any) => apiFetch<any>(`/codes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   validate: (codeValue: string) => apiFetch<any>('/codes/validate', { method: 'POST', body: JSON.stringify({ codeValue }) }),

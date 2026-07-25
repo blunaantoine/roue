@@ -41,7 +41,6 @@ export function PrizePanel() {
     name: '',
     description: '',
     color: '#FF6B35',
-    probability: 10,
     isLosing: false,
     sectorLabel: '',
     sortOrder: 0,
@@ -51,7 +50,6 @@ export function PrizePanel() {
     name: '',
     description: '',
     color: '#FF6B35',
-    probability: 10,
     isLosing: false,
     sectorLabel: '',
     sortOrder: 0,
@@ -92,7 +90,6 @@ export function PrizePanel() {
         name: formData.name,
         description: formData.description,
         color: formData.color,
-        probability: formData.probability,
         isLosing: formData.isLosing,
         sectorLabel: formData.sectorLabel,
         sortOrder: formData.sortOrder,
@@ -100,7 +97,7 @@ export function PrizePanel() {
       });
       toast.success('Lot créé avec succès');
       setShowCreate(false);
-      setFormData({ name: '', description: '', color: '#FF6B35', probability: 10, isLosing: false, sectorLabel: '', sortOrder: 0 });
+      setFormData({ name: '', description: '', color: '#FF6B35', isLosing: false, sectorLabel: '', sortOrder: 0 });
       await loadPrizes();
     } catch (error) {
       toast.error('Erreur lors de la création');
@@ -117,7 +114,6 @@ export function PrizePanel() {
         name: editData.name,
         description: editData.description,
         color: editData.color,
-        probability: editData.probability,
         isLosing: editData.isLosing,
         sectorLabel: editData.sectorLabel,
         sortOrder: editData.sortOrder,
@@ -169,7 +165,6 @@ export function PrizePanel() {
       name: prize.name,
       description: prize.description || '',
       color: prize.color,
-      probability: prize.probability,
       isLosing: prize.isLosing,
       sectorLabel: prize.sectorLabel || '',
       sortOrder: prize.sortOrder,
@@ -212,8 +207,7 @@ export function PrizePanel() {
                   <TableHead>Ordre</TableHead>
                   <TableHead>Couleur</TableHead>
                   <TableHead>Nom</TableHead>
-                  <TableHead>Probabilité</TableHead>
-                  <TableHead>Perdant</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Label</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -240,16 +234,6 @@ export function PrizePanel() {
                             value={editData.name}
                             onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                             className="h-8"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={editData.probability}
-                            onChange={(e) => setEditData({ ...editData, probability: Number(e.target.value) })}
-                            className="h-8 w-20"
                           />
                         </TableCell>
                         <TableCell>
@@ -299,12 +283,6 @@ export function PrizePanel() {
                         </TableCell>
                         <TableCell className="font-medium">{prize.name}</TableCell>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{prize.probability}</span>
-                            <span className="text-xs text-muted-foreground">poids</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
                           <Badge variant={prize.isLosing ? 'destructive' : 'default'}>
                             {prize.isLosing ? 'Perdant' : 'Gagnant'}
                           </Badge>
@@ -339,7 +317,7 @@ export function PrizePanel() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nouveau Lot</DialogTitle>
-              <DialogDescription>Ajoutez un nouveau lot à la campagne.</DialogDescription>
+              <DialogDescription>Ajoutez un nouveau lot/secteur à la roue.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
@@ -377,20 +355,6 @@ export function PrizePanel() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="prize-probability">Probabilité (poids)</Label>
-                <Input
-                  id="prize-probability"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={formData.probability}
-                  onChange={(e) => setFormData({ ...formData, probability: Number(e.target.value) })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Poids relatif pour la sélection aléatoire. La chance réelle = probabilité de ce lot ÷ somme de toutes les probabilités.
-                </p>
-              </div>
-              <div className="grid gap-2">
                 <Label htmlFor="prize-sector-label">Label du secteur</Label>
                 <Input
                   id="prize-sector-label"
@@ -413,16 +377,16 @@ export function PrizePanel() {
                   checked={formData.isLosing}
                   onCheckedChange={(checked) => setFormData({ ...formData, isLosing: checked })}
                 />
-                <Label>Lot perdant</Label>
+                <Label>Lot perdant (secteur &quot;Perdu&quot;)</Label>
               </div>
               {formData.isLosing && (
                 <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/50 text-sm text-red-700 dark:text-red-400">
-                  ⚠ Ce lot sera considéré comme une perte. Quand le joueur tombe sur ce secteur, il ne remporte rien.
+                  Ce lot sera un secteur &quot;Perdu&quot; sur la roue. Quand un ticket perdant est utilisé, la roue s&apos;arrête sur ce secteur.
                 </div>
               )}
               {!formData.isLosing && formData.name && (
                 <div className="rounded-lg border p-3 bg-green-50 dark:bg-green-950/50 text-sm text-green-700 dark:text-green-400">
-                  ✅ Ce lot est gagnant. Le joueur remportera le lot indiqué.
+                  Ce lot est gagnant. Quand un ticket gagnant est assigné à ce lot, la roue s&apos;arrête sur ce secteur.
                 </div>
               )}
             </div>
