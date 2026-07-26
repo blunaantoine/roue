@@ -4,10 +4,13 @@ export interface Prize {
   id: string;
   name: string;
   description?: string;
+  imageUrl?: string;
   color: string;
   icon?: string;
   isLosing: boolean;
   sectorLabel?: string;
+  sectorPosition?: number;
+  quantity?: number;
   sortOrder: number;
   active: boolean;
   campaignId: string;
@@ -54,6 +57,8 @@ export interface Campaign {
 
 export interface WheelConfig {
   id: string;
+  sectorCount: number;
+  losingSectorCount: number;
   spinDuration: number;
   minRotations: number;
   maxRotations: number;
@@ -63,6 +68,7 @@ export interface WheelConfig {
   backgroundColor: string;
   textColor: string;
   fontSize: number;
+  soundEnabled: boolean;
   campaignId: string;
   createdAt: string;
   updatedAt: string;
@@ -99,7 +105,7 @@ export interface AdminLog {
 
 export interface SpinResult {
   success: boolean;
-  isLosing: boolean;
+  isWinning: boolean;
   prize?: Prize;
   codeValue: string;
   participantName?: string;
@@ -125,4 +131,23 @@ export interface WinnerInfo {
   participantName?: string;
   participantPhone?: string;
   timestamp: string;
+}
+
+// Session code queue - codes added by user but not yet spun
+export interface SessionCode {
+  codeValue: string;
+  codeId: string;
+  result: 'winning' | 'losing' | null;
+  prizeId?: string;
+  prize?: Prize;
+}
+
+// Wheel sector configuration
+export interface WheelSector {
+  position: number;
+  prizeId: string | null;
+  prize: Prize | null;
+  label: string;
+  color: string;
+  isLosing: boolean;
 }

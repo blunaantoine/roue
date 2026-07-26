@@ -30,10 +30,13 @@ model Prize {
   id          String   @id @default(cuid())
   name        String
   description String?
+  imageUrl    String?
   color       String   @default("#FF6B6B")
   icon        String?
   isLosing    Boolean  @default(false)
   sectorLabel String?
+  sectorPosition Int?
+  quantity    Int?
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -101,6 +104,8 @@ model PromotionMessage {
 
 model WheelConfig {
   id              String   @id @default(cuid())
+  sectorCount     Int      @default(10)
+  losingSectorCount Int    @default(4)
   spinDuration    Int      @default(5000)
   minRotations    Int      @default(3)
   maxRotations    Int      @default(7)
@@ -110,6 +115,7 @@ model WheelConfig {
   backgroundColor String   @default("#1a1a2e")
   textColor       String   @default("#FFFFFF")
   fontSize        Int      @default(14)
+  soundEnabled    Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -1,0 +1,712 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+     5→import { Button } from '@/components/ui/button';
+     6→import { Input } from '@/components/ui/input';
+     7→import { Label } from '@/components/ui/label';
+     8→import { Badge } from '@/components/ui/badge';
+     9→import {
+    10→  Table,
+    11→  TableBody,
+    12→  TableCell,
+    13→  TableHead,
+    14→  TableHeader,
+    15→  TableRow,
+    16→} from '@/components/ui/table';
+    17→import {
+    18→  Dialog,
+    19→  DialogContent,
+    20→  DialogHeader,
+    21→  DialogTitle,
+    22→  DialogFooter,
+    23→  DialogDescription,
+    24→} from '@/components/ui/dialog';
+    25→import {
+    26→  Select,
+    27→  SelectContent,
+    28→  SelectItem,
+    29→  SelectTrigger,
+    30→  SelectValue,
+    31→} from '@/components/ui/select';
+    32→import { codesApi, prizesApi } from '@/lib/api';
+    33→import { useAppStore } from '@/stores/app-store';
+    34→import { Code, Prize } from '@/types';
+    35→import { toast } from 'sonner';
+    36→import { Plus, Pencil, Loader2, QrCode } from 'lucide-react';
+    37→
+    38→// Status colors & labels
+    39→const statusColors: Record<string, string> = {
+    40→  unused: 'secondary',
+    41→  used: 'default',
+    42→};
+    43→
+    44→const statusLabels: Record<string, string> = {
+    45→  unused: 'Non utilisé',
+    46→  used: 'Utilisé',
+    47→};
+    48→
+    49→// Result colors & labels
+    50→const resultColors: Record<string, string> = {
+    51→  winning: 'default',
+    52→  losing: 'destructive',
+    53→};
+    54→
+    55→const resultLabels: Record<string, string> = {
+    56→  winning: 'Gagnant',
+    57→  losing: 'Perdant',
+    58→};
+    59→
+    60→interface EditState {
+    61→  codeId: string;
+    62→  codeValue: string;
+    63→  currentStatus: string;
+    64→  currentResult: string | null;
+    65→  newStatus: string;
+    66→  newResult: string | null;
+    67→  selectedPrizeId: string;
+    68→}
+    69→
+    70→export function CodePanel() {
+    71→  const { currentCampaignId } = useAppStore();
+    72→  const [codes, setCodes] = useState<Code[]>([]);
+    73→  const [prizes, setPrizes] = useState<Prize[]>([]);
+    74→  const [loading, setLoading] = useState(true);
+    75→  const [statusFilter, setStatusFilter] = useState<string>('all');
+    76→  const [resultFilter, setResultFilter] = useState<string>('all');
+    77→  const [showGenerate, setShowGenerate] = useState(false);
+    78→  const [showEdit, setShowEdit] = useState(false);
+    79→  const [editData, setEditData] = useState<EditState | null>(null);
+    80→
+    81→  const [generateData, setGenerateData] = useState({
+    82→    count: 10,
+    83→    result: 'winning' as 'winning' | 'losing',
+    84→    prizeId: '',
+    85→  });
+    86→
+    87→  async function loadCodes() {
+    88→    if (!currentCampaignId) {
+    89→      setCodes([]);
+    90→      setLoading(false);
+    91→      return;
+    92→    }
+    93→    try {
+    94→      setLoading(true);
+    95→      const params: { status?: string; result?: string } = {};
+    96→      if (statusFilter !== 'all') params.status = statusFilter;
+    97→      if (resultFilter !== 'all') params.result = resultFilter;
+    98→      const data = await codesApi.list(currentCampaignId, params);
+    99→      setCodes(Array.isArray(data) ? data : []);
+   100→    } catch (error) {
+   101→      toast.error('Erreur lors du chargement des codes');
+   102→    } finally {
+   103→      setLoading(false);
+   104→    }
+   105→  }
+   106→
+   107→  async function loadPrizes() {
+   108→    if (!currentCampaignId) return;
+   109→    try {
+   110→      const data = await prizesApi.list(currentCampaignId);
+   111→      setPrizes(Array.isArray(data) ? data : []);
+   112→    } catch (error) {
+   113→      toast.error('Erreur lors du chargement des lots');
+   114→    }
+   115→  }
+   116→
+   117→  useEffect(() => {
+   118→    loadCodes();
+   119→  }, [currentCampaignId, statusFilter, resultFilter]);
+   120→
+   121→  useEffect(() => {
+   122→    loadPrizes();
+   123→  }, [currentCampaignId]);
+   124→
+   125→  // Auto-select first winning prize when result changes to "winning"
+   126→  useEffect(() => {
+   127→    if (generateData.result === 'winning' && !generateData.prizeId) {
+   128→      const firstWinningPrize = prizes.find(p => !p.isLosing && p.active);
+   129→      if (firstWinningPrize) {
+   130→        setGenerateData(prev => ({ ...prev, prizeId: firstWinningPrize.id }));
+   131→      }
+   132→    }
+   133→  }, [generateData.result, prizes]);
+   134→
+   135→  async function handleGenerate() {
+   136→    if (!currentCampaignId) {
+   137→      toast.error('Sélectionnez une campagne d\'abord');
+   138→      return;
+   139→    }
+   140→    if (generateData.count < 1 || generateData.count > 1000) {
+   141→      toast.error('Le nombre de tickets doit être entre 1 et 1000');
+   142→      return;
+   143→    }
+   144→    if (generateData.result === 'winning' && !generateData.prizeId) {
+   145→      toast.error('Sélectionnez un lot pour les tickets gagnants');
+   146→      return;
+   147→    }
+   148→    try {
+   149→      await codesApi.generate({
+   150→        campaignId: currentCampaignId,
+   151→        count: generateData.count,
+   152→        result: generateData.result,
+   153→        prizeId: generateData.result === 'winning' ? generateData.prizeId : undefined,
+   154→      });
+   155→      toast.success(`${generateData.count} tickets ${generateData.result === 'winning' ? 'gagnants' : 'perdants'} générés`);
+   156→      setShowGenerate(false);
+   157→      setGenerateData({ count: 10, result: 'winning', prizeId: '' });
+   158→      await loadCodes();
+   159→    } catch (error) {
+   160→      toast.error('Erreur lors de la génération');
+   161→    }
+   162→  }
+   163→
+   164→  function openEdit(code: Code) {
+   165→    setEditData({
+   166→      codeId: code.id,
+   167→      codeValue: code.value,
+   168→      currentStatus: code.status,
+   169→      currentResult: code.result,
+   170→      newStatus: code.status,
+   171→      newResult: code.result,
+   172→      selectedPrizeId: code.prizeId || '',
+   173→    });
+   174→    setShowEdit(true);
+   175→  }
+   176→
+   177→  async function handleEditSubmit() {
+   178→    if (!editData) return;
+   179→
+   180→    try {
+   181→      const updatePayload: Record<string, unknown> = {
+   182→        status: editData.newStatus,
+   183→        result: editData.newResult,
+   184→      };
+   185→
+   186→      // When status is "unused", force result to null and clear prize
+   187→      if (editData.newStatus === 'unused') {
+   188→        updatePayload.result = null;
+   189→        updatePayload.prizeId = null;
+   190→      }
+   191→
+   192→      // When result is "winning", prize is required
+   193→      if (editData.newResult === 'winning') {
+   194→        if (!editData.selectedPrizeId) {
+   195→          toast.error('Veuillez sélectionner un lot pour un ticket gagnant');
+   196→          return;
+   197→        }
+   198→        updatePayload.prizeId = editData.selectedPrizeId;
+   199→      }
+   200→
+   201→      // When result is "losing", clear prize
+   202→      if (editData.newResult === 'losing') {
+   203→        updatePayload.prizeId = null;
+   204→      }
+   205→
+   206→      // When result is null (used but no result), keep or clear prize
+   207→      if (editData.newResult === null && editData.newStatus === 'used') {
+   208→        updatePayload.prizeId = editData.selectedPrizeId || null;
+   209→      }
+   210→
+   211→      await codesApi.update(editData.codeId, updatePayload);
+   212→      toast.success(`Ticket ${editData.codeValue} modifié avec succès`);
+   213→      setShowEdit(false);
+   214→      setEditData(null);
+   215→      await loadCodes();
+   216→    } catch (error) {
+   217→      toast.error('Erreur lors de la modification');
+   218→    }
+   219→  }
+   220→
+   221→  // Calculate statistics
+   222→  const totalCodes = codes.length;
+   223→  const unusedCodes = codes.filter((c) => c.status === 'unused').length;
+   224→  const usedCodes = codes.filter((c) => c.status === 'used').length;
+   225→  const winningCodes = codes.filter((c) => c.result === 'winning').length;
+   226→  const losingCodes = codes.filter((c) => c.result === 'losing').length;
+   227→
+   228→  // Determine display badge for result
+   229→  function getResultBadge(code: Code) {
+   230→    if (code.status === 'unused') {
+   231→      // Show predetermined result for unused tickets
+   232→      if (code.result === 'winning') {
+   233→        return <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">Gagnant</Badge>;
+   234→      }
+   235→      if (code.result === 'losing') {
+   236→        return <Badge variant="destructive" className="text-xs">Perdant</Badge>;
+   237→      }
+   238→      return <Badge variant="secondary" className="text-xs">En attente</Badge>;
+   239→    }
+   240→    if (code.result === 'winning') {
+   241→      return <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">{resultLabels.winning}</Badge>;
+   242→    }
+   243→    if (code.result === 'losing') {
+   244→      return <Badge variant={resultColors.losing as 'default' | 'destructive'} className="text-xs">{resultLabels.losing}</Badge>;
+   245→    }
+   246→    return <Badge variant="outline" className="text-xs">Non défini</Badge>;
+   247→  }
+   248→
+   249→  if (!currentCampaignId) {
+   250→    return (
+   251→      <Card>
+   252→        <CardContent className="py-8 text-center text-muted-foreground">
+   253→          Veuillez sélectionner une campagne d&apos;abord.
+   254→        </CardContent>
+   255→      </Card>
+   256→    );
+   257→  }
+   258→
+   259→  const winningPrizes = prizes.filter(p => !p.isLosing && p.active);
+   260→  const losingPrizes = prizes.filter(p => p.isLosing && p.active);
+   261→
+   262→  return (
+   263→    <div className="space-y-4">
+   264→      {/* Statistics Cards */}
+   265→      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+   266→        <Card className="p-4">
+   267→          <div className="text-sm text-muted-foreground">Total</div>
+   268→          <div className="text-2xl font-bold">{totalCodes}</div>
+   269→        </Card>
+   270→        <Card className="p-4">
+   271→          <div className="text-sm text-muted-foreground">Non utilisés</div>
+   272→          <div className="text-2xl font-bold text-green-600">{unusedCodes}</div>
+   273→        </Card>
+   274→        <Card className="p-4">
+   275→          <div className="text-sm text-muted-foreground">Utilisés</div>
+   276→          <div className="text-2xl font-bold">{usedCodes}</div>
+   277→        </Card>
+   278→        <Card className="p-4">
+   279→          <div className="text-sm text-muted-foreground">Gagnants</div>
+   280→          <div className="text-2xl font-bold text-amber-600">{winningCodes}</div>
+   281→        </Card>
+   282→        <Card className="p-4">
+   283→          <div className="text-sm text-muted-foreground">Perdants</div>
+   284→          <div className="text-2xl font-bold text-red-600">{losingCodes}</div>
+   285→        </Card>
+   286→      </div>
+   287→
+   288→      {/* Main Card */}
+   289→      <Card>
+   290→        <CardHeader className="flex flex-row items-center justify-between">
+   291→          <CardTitle>Gestion des Tickets</CardTitle>
+   292→          <div className="flex gap-2">
+   293→            <Select value={statusFilter} onValueChange={setStatusFilter}>
+   294→              <SelectTrigger className="w-[130px] h-9">
+   295→                <SelectValue placeholder="Utilisation" />
+   296→              </SelectTrigger>
+   297→              <SelectContent>
+   298→                <SelectItem value="all">Tous</SelectItem>
+   299→                <SelectItem value="unused">Non utilisés</SelectItem>
+   300→                <SelectItem value="used">Utilisés</SelectItem>
+   301→              </SelectContent>
+   302→            </Select>
+   303→            <Select value={resultFilter} onValueChange={setResultFilter}>
+   304→              <SelectTrigger className="w-[130px] h-9">
+   305→                <SelectValue placeholder="Résultat" />
+   306→              </SelectTrigger>
+   307→              <SelectContent>
+   308→                <SelectItem value="all">Tous</SelectItem>
+   309→                <SelectItem value="winning">Gagnants</SelectItem>
+   310→                <SelectItem value="losing">Perdants</SelectItem>
+   311→              </SelectContent>
+   312→            </Select>
+   313→            <Button onClick={() => setShowGenerate(true)} size="sm" className="gap-1.5">
+   314→              <Plus className="size-4" />
+   315→              Générer
+   316→            </Button>
+   317→          </div>
+   318→        </CardHeader>
+   319→        <CardContent>
+   320→          {loading ? (
+   321→            <div className="flex items-center justify-center py-8">
+   322→              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+   323→            </div>
+   324→          ) : codes.length === 0 ? (
+   325→            <div className="text-center py-8 text-muted-foreground">
+   326→              Aucun ticket trouvé. Génère des tickets pour commencer.
+   327→            </div>
+   328→          ) : (
+   329→            <div className="max-h-96 overflow-y-auto">
+   330→              <Table>
+   331→                <TableHeader>
+   332→                  <TableRow>
+   333→                    <TableHead>Code</TableHead>
+   334→                    <TableHead>Utilisation</TableHead>
+   335→                    <TableHead>Résultat</TableHead>
+   336→                    <TableHead>Lot</TableHead>
+   337→                    <TableHead>Date création</TableHead>
+   338→                    <TableHead>Date utilisation</TableHead>
+   339→                    <TableHead className="text-right">Actions</TableHead>
+   340→                  </TableRow>
+   341→                </TableHeader>
+   342→                <TableBody>
+   343→                  {codes.map((code) => (
+   344→                    <TableRow key={code.id}>
+   345→                      <TableCell>
+   346→                        <div className="flex items-center gap-2">
+   347→                          <QrCode className="size-4 text-muted-foreground" />
+   348→                          <span className="font-mono font-medium">{code.value}</span>
+   349→                        </div>
+   350→                      </TableCell>
+   351→                      <TableCell>
+   352→                        <Badge variant={statusColors[code.status] as 'default' | 'secondary'}>
+   353→                          {statusLabels[code.status]}
+   354→                        </Badge>
+   355→                      </TableCell>
+   356→                      <TableCell>
+   357→                        {getResultBadge(code)}
+   358→                      </TableCell>
+   359→                      <TableCell>{code.prize?.name || '-'}</TableCell>
+   360→                      <TableCell>{new Date(code.createdAt).toLocaleDateString('fr-FR')}</TableCell>
+   361→                      <TableCell>{code.usedAt ? new Date(code.usedAt).toLocaleDateString('fr-FR') : '-'}</TableCell>
+   362→                      <TableCell className="text-right">
+   363→                        <Button
+   364→                          size="sm"
+   365→                          variant="ghost"
+   366→                          onClick={() => openEdit(code)}
+   367→                          className="h-7 gap-1"
+   368→                        >
+   369→                          <Pencil className="size-3" />
+   370→                          Modifier
+   371→                        </Button>
+   372→                      </TableCell>
+   373→                    </TableRow>
+   374→                  ))}
+   375→                </TableBody>
+   376→              </Table>
+   377→            </div>
+   378→          )}
+   379→        </CardContent>
+   380→      </Card>
+   381→
+   382→      {/* Generate Dialog */}
+   383→      <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
+   384→        <DialogContent>
+   385→          <DialogHeader>
+   386→            <DialogTitle>Générer des Tickets</DialogTitle>
+   387→            <DialogDescription>
+   388→              Créez des tickets avec un résultat prédéterminé (gagnant ou perdant).
+   389→              Le résultat du ticket détermine où la roue s&apos;arrêtera.
+   390→            </DialogDescription>
+   391→          </DialogHeader>
+   392→          <div className="grid gap-4 py-4">
+   393→            {/* Result type selection */}
+   394→            <div className="grid gap-2">
+   395→              <Label>Type de ticket *</Label>
+   396→              <div className="grid grid-cols-2 gap-3">
+   397→                <Button
+   398→                  variant={generateData.result === 'winning' ? 'default' : 'outline'}
+   399→                  className={`h-auto py-3 flex flex-col items-center gap-1 ${generateData.result === 'winning' ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
+   400→                  onClick={() => setGenerateData(prev => ({ ...prev, result: 'winning', prizeId: '' }))}
+   401→                >
+   402→                  <span className="text-lg">🏆</span>
+   403→                  <span className="font-semibold">Gagnant</span>
+   404→                  <span className="text-xs">La roue s&apos;arrête sur un lot</span>
+   405→                </Button>
+   406→                <Button
+   407→                  variant={generateData.result === 'losing' ? 'default' : 'outline'}
+   408→                  className={`h-auto py-3 flex flex-col items-center gap-1 ${generateData.result === 'losing' ? 'bg-red-500 hover:bg-red-600 text-white' : ''}`}
+   409→                  onClick={() => setGenerateData(prev => ({ ...prev, result: 'losing', prizeId: '' }))}
+   410→                >
+   411→                  <span className="text-lg">💨</span>
+   412→                  <span className="font-semibold">Perdant</span>
+   413→                  <span className="text-xs">La roue s&apos;arrête sur &quot;Perdu&quot;</span>
+   414→                </Button>
+   415→              </div>
+   416→            </div>
+   417→
+   418→            {/* Number of tickets */}
+   419→            <div className="grid gap-2">
+   420→              <Label htmlFor="code-count">Nombre de tickets *</Label>
+   421→              <Input
+   422→                id="code-count"
+   423→                type="number"
+   424→                min={1}
+   425→                max={1000}
+   426→                value={generateData.count}
+   427→                onChange={(e) => setGenerateData(prev => ({ ...prev, count: Number(e.target.value) }))}
+   428→              />
+   429→            </div>
+   430→
+   431→            {/* Prize selection for winning tickets */}
+   432→            {generateData.result === 'winning' && (
+   433→              <div className="grid gap-2">
+   434→                <Label>Lot à attribuer *</Label>
+   435→                {winningPrizes.length === 0 ? (
+   436→                  <div className="rounded-lg border p-3 bg-muted/50 text-sm text-muted-foreground">
+   437→                    Aucun lot gagnant disponible. Créez d&apos;abord des lots gagnants dans la section &quot;Lots&quot;.
+   438→                  </div>
+   439→                ) : (
+   440→                  <Select
+   441→                    value={generateData.prizeId}
+   442→                    onValueChange={(value) => setGenerateData(prev => ({ ...prev, prizeId: value }))}
+   443→                  >
+   444→                    <SelectTrigger>
+   445→                      <SelectValue placeholder="Sélectionnez un lot" />
+   446→                    </SelectTrigger>
+   447→                    <SelectContent>
+   448→                      {winningPrizes.map((prize) => (
+   449→                        <SelectItem key={prize.id} value={prize.id}>
+   450→                          <div className="flex items-center gap-2">
+   451→                            <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
+   452→                            <span>{prize.name}</span>
+   453→                          </div>
+   454→                        </SelectItem>
+   455→                      ))}
+   456→                    </SelectContent>
+   457→                  </Select>
+   458→                )}
+   459→                <p className="text-xs text-muted-foreground">
+   460→                  Tous les tickets gagnants générés seront assignés à ce lot. La roue s&apos;arrêtera sur le secteur correspondant.
+   461→                </p>
+   462→              </div>
+   463→            )}
+   464→
+   465→            {/* Losing tickets info */}
+   466→            {generateData.result === 'losing' && losingPrizes.length === 0 && (
+   467→              <div className="rounded-lg border p-3 bg-yellow-50 dark:bg-yellow-950/50 text-sm text-yellow-700 dark:text-yellow-400">
+   468→                Aucun secteur &quot;Perdu&quot; défini. Créez un lot avec le statut &quot;Perdant&quot; dans la section &quot;Lots&quot; pour que la roue puisse s&apos;arrêter sur un secteur perdant.
+   469→              </div>
+   470→            )}
+   471→
+   472→            {/* Summary */}
+   473→            <div className="rounded-lg border p-3 bg-muted/50 text-sm">
+   474→              <div className="flex items-center justify-between">
+   475→                <span className="text-muted-foreground">Résumé :</span>
+   476→                <span className="font-medium">
+   477→                  {generateData.count} tickets {generateData.result === 'winning' ? 'gagnants' : 'perdants'}
+   478→                </span>
+   479→              </div>
+   480→              {generateData.result === 'winning' && generateData.prizeId && (
+   481→                <div className="flex items-center justify-between mt-1">
+   482→                  <span className="text-muted-foreground">Lot :</span>
+   483→                  <div className="flex items-center gap-1.5">
+   484→                    {(() => {
+   485→                      const selectedPrize = winningPrizes.find(p => p.id === generateData.prizeId);
+   486→                      return selectedPrize ? (
+   487→                        <>
+   488→                          <div className="size-3 rounded" style={{ backgroundColor: selectedPrize.color }} />
+   489→                          <span>{selectedPrize.name}</span>
+   490→                        </>
+   491→                      ) : null;
+   492→                    })()}
+   493→                  </div>
+   494→                </div>
+   495→              )}
+   496→            </div>
+   497→          </div>
+   498→          <DialogFooter>
+   499→            <Button variant="ghost" onClick={() => setShowGenerate(false)}>
+   500→              Annuler
+   501→            </Button>
+   502→            <Button
+   503→              onClick={handleGenerate}
+   504→              disabled={generateData.result === 'winning' && !generateData.prizeId}
+   505→            >
+   506→              Générer
+   507→            </Button>
+   508→          </DialogFooter>
+   509→        </DialogContent>
+   510→      </Dialog>
+   511→
+   512→      {/* Edit Dialog */}
+   513→      <Dialog open={showEdit} onOpenChange={(open) => {
+   514→        if (!open) {
+   515→          setShowEdit(false);
+   516→          setEditData(null);
+   517→        }
+   518→      }}>
+   519→        <DialogContent>
+   520→          <DialogHeader>
+   521→            <DialogTitle>Modifier le ticket</DialogTitle>
+   522→            <DialogDescription>
+   523→              Ticket : <span className="font-mono font-bold">{editData?.codeValue}</span>
+   524→            </DialogDescription>
+   525→          </DialogHeader>
+   526→          <div className="grid gap-4 py-4">
+   527→            {/* Current state summary */}
+   528→            <div className="flex items-center gap-3 rounded-lg border p-3 bg-muted/50">
+   529→              <span className="text-sm text-muted-foreground">Actuellement :</span>
+   530→              <Badge variant={statusColors[editData?.currentStatus || 'unused'] as 'default' | 'secondary'}>
+   531→                {statusLabels[editData?.currentStatus || 'unused']}
+   532→              </Badge>
+   533→              {editData?.currentResult && (
+   534→                <Badge
+   535→                  variant={resultColors[editData.currentResult] as 'default' | 'destructive'}
+   536→                  className={editData.currentResult === 'winning' ? 'bg-amber-100 text-amber-800 border-amber-300' : ''}
+   537→                >
+   538→                  {resultLabels[editData.currentResult]}
+   539→                </Badge>
+   540→              )}
+   541→              {!editData?.currentResult && editData?.currentStatus === 'used' && (
+   542→                <Badge variant="outline">Non défini</Badge>
+   543→              )}
+   544→              {editData?.currentStatus === 'unused' && !editData?.currentResult && (
+   545→                <Badge variant="secondary" className="text-xs">En attente</Badge>
+   546→              )}
+   547→            </div>
+   548→
+   549→            {/* Status (utilisation) */}
+   550→            <div className="grid gap-2">
+   551→              <Label>Utilisation *</Label>
+   552→              <Select
+   553→                value={editData?.newStatus || 'unused'}
+   554→                onValueChange={(value) => {
+   555→                  if (editData) {
+   556→                    const newEdit = { ...editData, newStatus: value };
+   557→                    // If switching to "unused", clear result and prize
+   558→                    if (value === 'unused') {
+   559→                      newEdit.newResult = null;
+   560→                      newEdit.selectedPrizeId = '';
+   561→                    }
+   562→                    setEditData(newEdit);
+   563→                  }
+   564→                }}
+   565→              >
+   566→                <SelectTrigger>
+   567→                  <SelectValue />
+   568→                </SelectTrigger>
+   569→                <SelectContent>
+   570→                  <SelectItem value="unused">
+   571→                    <div className="flex items-center gap-2">
+   572→                      <div className="size-2.5 rounded-full bg-green-500" />
+   573→                      Non utilisé
+   574→                    </div>
+   575→                  </SelectItem>
+   576→                  <SelectItem value="used">
+   577→                    <div className="flex items-center gap-2">
+   578→                      <div className="size-2.5 rounded-full bg-blue-500" />
+   579→                      Utilisé
+   580→                    </div>
+   581→                  </SelectItem>
+   582→                </SelectContent>
+   583→              </Select>
+   584→            </div>
+   585→
+   586→            {/* Result (résultat) — only when status is "used" */}
+   587→            {editData?.newStatus === 'used' && (
+   588→              <div className="grid gap-2">
+   589→                <Label>Résultat *</Label>
+   590→                <Select
+   591→                  value={editData.newResult || '__none__'}
+   592→                  onValueChange={(value) => {
+   593→                    if (editData) {
+   594→                      const resultValue = value === '__none__' ? null : value;
+   595→                      const newEdit = { ...editData, newResult: resultValue };
+   596→                      // Clear prize when switching to losing
+   597→                      if (resultValue === 'losing') {
+   598→                        newEdit.selectedPrizeId = '';
+   599→                      }
+   600→                      setEditData(newEdit);
+   601→                    }
+   602→                  }}
+   603→                >
+   604→                  <SelectTrigger>
+   605→                    <SelectValue />
+   606→                  </SelectTrigger>
+   607→                  <SelectContent>
+   608→                    <SelectItem value="__none__">
+   609→                      <div className="flex items-center gap-2">
+   610→                        <div className="size-2.5 rounded-full bg-gray-400" />
+   611→                        Non défini
+   612→                      </div>
+   613→                    </SelectItem>
+   614→                    <SelectItem value="winning">
+   615→                      <div className="flex items-center gap-2">
+   616→                        <div className="size-2.5 rounded-full bg-amber-500" />
+   617→                        Gagnant
+   618→                      </div>
+   619→                    </SelectItem>
+   620→                    <SelectItem value="losing">
+   621→                      <div className="flex items-center gap-2">
+   622→                        <div className="size-2.5 rounded-full bg-red-500" />
+   623→                        Perdant
+   624→                      </div>
+   625→                    </SelectItem>
+   626→                  </SelectContent>
+   627→                </Select>
+   628→              </div>
+   629→            )}
+   630→
+   631→            {/* Prize selection — when result is "winning" */}
+   632→            {editData?.newResult === 'winning' && (
+   633→              <div className="grid gap-2">
+   634→                <Label>Lot associé *</Label>
+   635→                <Select
+   636→                  value={editData.selectedPrizeId}
+   637→                  onValueChange={(value) => {
+   638→                    if (editData) {
+   639→                      setEditData({ ...editData, selectedPrizeId: value });
+   640→                    }
+   641→                  }}
+   642→                >
+   643→                  <SelectTrigger>
+   644→                    <SelectValue placeholder="Sélectionnez un lot" />
+   645→                  </SelectTrigger>
+   646→                  <SelectContent>
+   647→                    {prizes.filter((p) => !p.isLosing && p.active).map((prize) => (
+   648→                      <SelectItem key={prize.id} value={prize.id}>
+   649→                        <div className="flex items-center gap-2">
+   650→                          <div className="size-4 rounded" style={{ backgroundColor: prize.color }} />
+   651→                          <span>{prize.name}</span>
+   652→                        </div>
+   653→                      </SelectItem>
+   654→                    ))}
+   655→                  </SelectContent>
+   656→                </Select>
+   657→              </div>
+   658→            )}
+   659→
+   660→            {/* Warning messages for changes */}
+   661→            {editData && (editData.newStatus !== editData.currentStatus || editData.newResult !== editData.currentResult) && (
+   662→              <div className="rounded-lg border p-3 bg-muted/50 text-sm space-y-1">
+   663→                {editData.newStatus === 'unused' && (
+   664→                  <p className="text-green-600 font-medium">
+   665→                    Le ticket sera réinitialisé : non utilisé, résultat et lot supprimés.
+   666→                  </p>
+   667→                )}
+   668→                {editData.newStatus === 'used' && editData.currentStatus === 'unused' && (
+   669→                  <p className="text-blue-600 font-medium">
+   670→                    Le ticket sera marqué comme utilisé.
+   671→                  </p>
+   672→                )}
+   673→                {editData.newResult === 'winning' && (
+   674→                  <p className="text-amber-600 font-medium">
+   675→                    Le résultat sera « Gagnant » avec le lot sélectionné.
+   676→                  </p>
+   677→                )}
+   678→                {editData.newResult === 'losing' && (
+   679→                  <p className="text-red-600 font-medium">
+   680→                    Le résultat sera « Perdant ». Le lot associé sera supprimé.
+   681→                  </p>
+   682→                )}
+   683→                {editData.newResult === null && editData.currentResult !== null && editData.newStatus === 'used' && (
+   684→                  <p className="text-gray-600 font-medium">
+   685→                    Le résultat sera effacé (ticket utilisé sans résultat défini).
+   686→                  </p>
+   687→                )}
+   688→              </div>
+   689→            )}
+   690→          </div>
+   691→          <DialogFooter>
+   692→            <Button variant="ghost" onClick={() => {
+   693→              setShowEdit(false);
+   694→              setEditData(null);
+   695→            }}>
+   696→              Annuler
+   697→            </Button>
+   698→            <Button
+   699→              onClick={handleEditSubmit}
+   700→              disabled={
+   701→                editData?.newResult === 'winning' && !editData?.selectedPrizeId
+   702→              }
+   703→            >
+   704→              Confirmer
+   705→            </Button>
+   706→          </DialogFooter>
+   707→        </DialogContent>
+   708→      </Dialog>
+   709→    </div>
+   710→  );
+   711→}
+   712→

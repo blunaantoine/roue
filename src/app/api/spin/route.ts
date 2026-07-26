@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 
 // POST: Process a spin
 // The result is determined by the ticket's predetermined result and prizeId.
-// The wheel just visually displays the predetermined outcome.
+// The wheel is purely an animation that stops on the sector matching the ticket's outcome.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -39,39 +39,111 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Campaign is not active' }, { status: 400 });
     }
 
+    // Get wheel configuration
+    const wheelConfig = code.campaign.wheelConfig;
+    const sectorCount = wheelConfig?.sectorCount ?? 10;
+    const losingSectorCount = wheelConfig?.losingSectorCount ?? 4;
+
+    // Build the wheel sectors: losing sectors + winning prize sectors
+    const losingPrizes = code.campaign.prizes.filter(p => p.isLosing);
+    const winningPrizes = code.campaign.prizes.filter(p => !p.isLosing);
+
+    // Build wheel sectors array (10 sectors total)
+    // Losing sectors first, then winning prize sectors
+    const wheelSectors: { prizeId: string | null; prize: any; isLosing: boolean; label: string; color: string }[] = [];
+
+    // Add losing sectors
+    for (let i = 0; i < losingSectorCount; i++) {
+      // Distribute losing prizes across losing sectors
+      const losingPrize = losingPrizes[i % losingPrizes.length] || losingPrizes[0];
+      wheelSectors.push({
+        prizeId: losingPrize?.id ?? null,
+        prize: losingPrize,
+        isLosing: true,
+        label: losingPrize?.sectorLabel || losingPrize?.name || 'Perdant',
+        color: losingPrize?.color || '#374151',
+      });
+    }
+
+    // Add winning prize sectors
+    for (const prize of winningPrizes) {
+      wheelSectors.push({
+        prizeId: prize.id,
+        prize: prize,
+        isLosing: false,
+        label: prize.sectorLabel || prize.name,
+        color: prize.color,
+      });
+    }
+
+    // If we have fewer sectors than sectorCount, fill remaining with losing sectors
+    while (wheelSectors.length < sectorCount) {
+      const losingPrize = losingPrizes[0] || losingPrizes[0];
+      wheelSectors.push({
+        prizeId: losingPrize?.id ?? null,
+        prize: losingPrize,
+        isLosing: true,
+        label: losingPrize?.sectorLabel || 'Perdant',
+        color: losingPrize?.color || '#374151',
+      });
+    }
+
+    // If we have more sectors than sectorCount, truncate
+    while (wheelSectors.length > sectorCount) {
+      wheelSectors.pop();
+    }
+
     // Determine the result based on the ticket's predetermined values
-    const prizes = code.campaign.prizes;
+    let targetSectorIndex: number;
+    let isWinning: boolean;
     let wonPrizeId: string | null = null;
-    let isWinning = false;
 
     if (code.result === 'winning') {
-      // Winning ticket: use its assigned prizeId
+      // Winning ticket: the wheel stops on the sector matching the assigned prize
       isWinning = true;
       wonPrizeId = code.prizeId;
 
-      if (!wonPrizeId) {
-        // Edge case: winning ticket without prizeId - assign a random winning prize
-        const winningPrizes = prizes.filter(p => !p.isLosing);
-        if (winningPrizes.length > 0) {
-          wonPrizeId = winningPrizes[Math.floor(Math.random() * winningPrizes.length)].id;
+      if (wonPrizeId) {
+        // Find the sector with this prize
+        targetSectorIndex = wheelSectors.findIndex(s => s.prizeId === wonPrizeId);
+        if (targetSectorIndex === -1) {
+          // Prize not on wheel, find any winning sector
+          targetSectorIndex = wheelSectors.findIndex(s => !s.isLosing);
         }
+      } else {
+        // No specific prize assigned, pick a random winning sector
+        const winningSectorIndices = wheelSectors
+          .map((s, i) => (!s.isLosing ? i : -1))
+          .filter(i => i !== -1);
+        targetSectorIndex = winningSectorIndices.length > 0
+          ? winningSectorIndices[Math.floor(Math.random() * winningSectorIndices.length)]
+          : 0;
+        wonPrizeId = wheelSectors[targetSectorIndex]?.prizeId ?? null;
       }
     } else if (code.result === 'losing') {
-      // Losing ticket: the wheel lands on a losing sector
+      // Losing ticket: the wheel stops on a losing sector
       isWinning = false;
-      const losingPrizes = prizes.filter(p => p.isLosing);
-      if (losingPrizes.length > 0) {
-        // Randomly pick one losing sector for the wheel to land on
-        wonPrizeId = losingPrizes[Math.floor(Math.random() * losingPrizes.length)].id;
-      }
+      const losingSectorIndices = wheelSectors
+        .map((s, i) => (s.isLosing ? i : -1))
+        .filter(i => i !== -1);
+      targetSectorIndex = losingSectorIndices.length > 0
+        ? losingSectorIndices[Math.floor(Math.random() * losingSectorIndices.length)]
+        : 0;
+      wonPrizeId = wheelSectors[targetSectorIndex]?.prizeId ?? null;
     } else {
-      // No result assigned - this ticket hasn't been properly configured
-      // Default to losing for safety
+      // No result assigned - default to losing for safety
       isWinning = false;
-      const losingPrizes = prizes.filter(p => p.isLosing);
-      if (losingPrizes.length > 0) {
-        wonPrizeId = losingPrizes[Math.floor(Math.random() * losingPrizes.length)].id;
-      }
+      const losingSectorIndices = wheelSectors
+        .map((s, i) => (s.isLosing ? i : -1))
+        .filter(i => i !== -1);
+      targetSectorIndex = losingSectorIndices.length > 0
+        ? losingSectorIndices[Math.floor(Math.random() * losingSectorIndices.length)]
+        : 0;
+      wonPrizeId = wheelSectors[targetSectorIndex]?.prizeId ?? null;
+    }
+
+    if (targetSectorIndex === -1 || targetSectorIndex === undefined) {
+      targetSectorIndex = 0;
     }
 
     // Update code: set status to used
@@ -108,20 +180,16 @@ export async function POST(request: NextRequest) {
       : null;
 
     // Calculate animation parameters
-    const wheelConfig = code.campaign.wheelConfig;
-    const prizeIndex = wonPrizeId
-      ? prizes.findIndex(p => p.id === wonPrizeId)
-      : -1;
-
-    // Equal-sized sectors (no probability)
-    const sectorAngle = prizes.length > 0 ? 360 / prizes.length : 360;
-    const targetAngle = prizeIndex >= 0
-      ? prizeIndex * sectorAngle + sectorAngle / 2
-      : 0;
-
     const minRotations = wheelConfig?.minRotations ?? 3;
     const maxRotations = wheelConfig?.maxRotations ?? 7;
     const totalRotations = minRotations + Math.floor(Math.random() * (maxRotations - minRotations + 1));
+
+    // The wheel rotates so that the pointer (at top) points to the target sector
+    const sectorAngle = 360 / sectorCount;
+    // Target angle: the center of the target sector
+    const targetAngle = targetSectorIndex * sectorAngle + sectorAngle / 2;
+    // Final angle: multiple full rotations + offset to land on target sector
+    // The pointer is at the top (0 degrees), so we need to rotate the wheel by (360 - targetAngle) + rotations
     const finalAngle = totalRotations * 360 + (360 - targetAngle);
 
     // Log participation
@@ -141,19 +209,14 @@ export async function POST(request: NextRequest) {
       isWinning,
       codeResult,
       prize: wonPrize,
-      prizeIndex,
+      targetSectorIndex,
       animation: {
         finalAngle,
         spinDuration: wheelConfig?.spinDuration ?? 5000,
         totalRotations,
         sectorAngle,
-        prizesOnWheel: prizes.map(p => ({
-          id: p.id,
-          name: p.name,
-          color: p.color,
-          sectorLabel: p.sectorLabel ?? p.name,
-          isLosing: p.isLosing,
-        })),
+        sectorCount,
+        wheelSectors,
       },
       participantName: participantName,
       participantPhone: participantPhone,

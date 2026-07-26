@@ -80,7 +80,7 @@ export function CodePanel() {
 
   const [generateData, setGenerateData] = useState({
     count: 10,
-    result: 'winning' as 'winning' | 'losing',
+    result: 'losing' as 'winning' | 'losing',
     prizeId: '',
   });
 
@@ -154,7 +154,7 @@ export function CodePanel() {
       });
       toast.success(`${generateData.count} tickets ${generateData.result === 'winning' ? 'gagnants' : 'perdants'} générés`);
       setShowGenerate(false);
-      setGenerateData({ count: 10, result: 'winning', prizeId: '' });
+      setGenerateData({ count: 10, result: 'losing', prizeId: '' });
       await loadCodes();
     } catch (error) {
       toast.error('Erreur lors de la génération');

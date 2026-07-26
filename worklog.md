@@ -1,174 +1,35 @@
 ---
-Task ID: 3
-Agent: full-stack-developer
-Task: Build all backend API routes
+Task ID: 1
+Agent: Main Agent
+Task: Improve Roue de la Chance platform with festive UX, code queue system, 3D wheel, confetti, sector configuration
 
 Work Log:
-- Created campaigns API routes (GET list, POST create with auto WheelConfig)
-- Created campaigns/[id] API route (GET, PUT, DELETE)
-- Created prizes API routes (GET list with campaignId filter, POST create)
-- Created prizes/[id] API route (GET, PUT, DELETE)
-- Created codes API routes (GET list with filters, POST generate with unique 8-char codes)
-- Created codes/[id] API route (GET, PUT for admin code reset)
-- Created codes/validate API route (POST - validate code for spinning)
-- Created spin API route with probability-based prize selection and animation params
-- Created participations API route (GET with campaignId filter)
-- Created contacts API route (GET, POST, PUT, DELETE)
-- Created stats API route with comprehensive campaign analytics
-- Created promotions API route (GET list, POST create)
-- Created promotions/[id] API route (PUT, DELETE)
-- Created wheel-config API route (GET by campaignId, PUT update)
-- Created admin-logs API route (GET list, POST create)
-- Created export API route (GET - CSV/JSON export for codes/participations/contacts)
-- All routes use db from '@/lib/db' and NextResponse.json()
-- Admin logging implemented for all key CRUD operations
-- Lint check passed with no errors
+- Updated Prisma schema to add imageUrl, sectorPosition, quantity to Prize model, and sectorCount, losingSectorCount, soundEnabled to WheelConfig model
+- Ran db:push and db:generate to sync database
+- Installed canvas-confetti package for celebration effects
+- Updated TypeScript types (Prize, WheelConfig, SessionCode, WheelSector types)
+- Updated app store with session code queue (addSessionCode, removeSessionCode, availableSpins), sound toggle
+- Rewrote page.tsx with festive dark theme (gradient background), gold/red themed navigation
+- Rewrote wheel-view.tsx: code queue system (add codes to session, each valid code = 1 spin), code validation dialog, spin button with availableSpins counter, session codes display
+- Rewrote spin-wheel.tsx: Canvas-based wheel with 3D shadows, gold rim, gradient sectors, 3D center circle, animated decorative lights, pointer with gradient, losing sectors show 😔 emoji
+- Rewrote spin-result.tsx: Win celebration with confetti bursts (canvas-confetti), sparkle effects, rotating light rays, prize image zoom animation, "Présentez ce résultat à la caisse" message; Lose result shows 😔 with "Merci pour votre participation. À bientôt !"
+- Rewrote spin-form.tsx: Optional participant info form
+- Updated prize-panel.tsx: Added imageUrl, icon, quantity fields in create/edit dialogs
+- Rewrote wheel-config-panel.tsx: Added sectorCount and losingSectorCount configuration, sector layout preview with position table, sound toggle, color configuration
+- Updated spin API route: Sector-based wheel calculation (losingSectorCount losing sectors, rest winning), targetSectorIndex for animation, isWinning instead of isLosing
+- Updated codes API route: Default result to "losing" (Perdant) per user spec
+- Updated code-panel.tsx: Default generateData.result to "losing"
+- Added CSS animations (zoomIn, fadeInUp, sparkle) to globals.css
+- Lint check passes cleanly
 
 Stage Summary:
-- All 16 API route files created under /src/app/api/
-- Spin endpoint implements probability-based prize selection with animation parameters
-- Code generation creates unique 8-char alphanumeric codes (excluding ambiguous chars)
-- Statistics endpoint provides comprehensive campaign analytics (codes, winners, losers, prize distribution, trend)
-- Export endpoint supports CSV and JSON format for codes, participations, and contacts
-- Admin logging implemented for all important operations
-- Database schema already in sync, lint passed successfully
-
----
-Task ID: 5
-Agent: full-stack-developer
-Task: Build customer-facing Wheel of Fortune view
-
-Work Log:
-- Created spin-wheel.tsx with HTML5 Canvas wheel rendering and smooth animation
-- Created spin-form.tsx with code validation and spin trigger
-- Created spin-result.tsx with win/lose display and animations
-- Created wheel-view.tsx as the main container component
-- Installed socket.io-client dependency
-- Ran lint check - all wheel components pass with no errors
-
-Stage Summary:
-- Wheel component with canvas-based animation using requestAnimationFrame
-- Smooth spin with ease-out cubic easing
-- Responsive layout with mobile-first design
-- Form validates code before spinning
-- Result overlay with confetti for winners
-
----
-Task ID: 7
-Agent: full-stack-developer
-Task: Build TV Display mode component
-
-Work Log:
-- Created tv-display.tsx as main container with full-screen immersive dark layout
-- Created tv-wheel.tsx with SVG-based wheel rendering for TV screens
-- Created tv-winners-feed.tsx with animated winner entries and congratulations banner
-- Created tv-promo-banner.tsx with rotating promotional messages
-- Created tv-result-overlay.tsx with celebration animations and confetti burst
-- Fixed lint errors: replaced useEffect+setState patterns with React "adjusting state based on props" render-time pattern
-- Fixed lint errors: removed ref access during render, replaced with state variables
-- Lint check passed with no errors
-
-Stage Summary:
-- TV display optimized for large screen landscape orientation (1080p)
-- Dark gradient background theme with amber/gold accent colors
-- Layout: 60% wheel on left, 40% winners feed on right, bottom promo banner
-- SVG wheel with CSS transitions for smooth TV-optimized animation
-- Real-time winners feed with animated entry (slide-in from right)
-- Congratulations banner with animated emoji and auto-hide
-- Rotating promotional messages banner with progress indicators
-- Result celebration overlay with 60-particle confetti burst for winners
-- "Try again!" brief overlay for losers with auto-hide after 2.5s
-- Socket integration: tv-ready emission, spin-animation/complete listeners
-- Top bar with campaign name, live connection status, and time display
-- All components use 'use client', framer-motion, and proper React patterns
-
----
-Task ID: 6
-Agent: full-stack-developer
-Task: Build Admin Dashboard with all management features
-
-Work Log:
-- Created admin-dashboard.tsx with 10 tabs using shadcn/ui Tabs component
-- Created campaign-panel.tsx with full CRUD, inline editing, select active campaign, confirmation dialogs
-- Created prize-panel.tsx with CRUD, color picker, isLosing toggle, up/down reorder buttons, sector labels
-- Created code-panel.tsx with generation dialog, filter by status, reset to losing, statistics cards
-- Created participation-panel.tsx with table listing, date range filtering
-- Created contact-panel.tsx with CRUD, search/filter, WhatsApp contact management
-- Created promotion-panel.tsx with CRUD, toggle active/inactive, TV preview dialog
-- Created wheel-config-panel.tsx with form for all config properties, SVG wheel preview, color pickers
-- Created stats-panel.tsx with recharts PieChart/LineChart, key metrics cards, recent participations list
-- Created export-panel.tsx with quick export buttons for CSV/JSON, custom export section
-- Created admin-log-panel.tsx with scrollable log table, action badges, auto-refresh (30s)
-- Fixed tv-wheel.tsx lint errors: moved ref access into useEffect, replaced state-based prevIsSpinning with useRef
-- Ran lint check - all admin components and tv-wheel pass with no errors
-
-Stage Summary:
-- Complete admin dashboard with 10 management panels via tabbed interface
-- Full CRUD operations for campaigns, prizes, codes, contacts, promotions
-- Statistics dashboard with recharts visualizations (pie chart, line chart)
-- Wheel configuration panel with SVG preview and color customization
-- Data export functionality (CSV and JSON formats)
-- Admin action logging with auto-refresh
-- All panels use shadcn/ui components, sonner toast, and proper error handling
-- Confirmation dialogs for destructive operations
-- Responsive design optimized for desktop with mobile support
-
----
-Task ID: 8
-Agent: main
-Task: Integration testing, API response format fixes, and browser verification
-
-Work Log:
-- Fixed API response format inconsistencies: all APIs return raw arrays/objects (not wrapped in {campaigns:...})
-- Updated api.ts to match actual API response formats
-- Fixed all admin panel components (campaign-panel, prize-panel, code-panel, participation-panel, contact-panel, promotion-panel, stats-panel, admin-log-panel, wheel-config-panel) to handle raw API responses
-- Fixed TV display component API access patterns (tv-display.tsx, tv-promo-banner.tsx)
-- Fixed page.tsx campaign loading to handle raw array/object API responses
-- Created test campaign "Promotion Printemps 2025" via API
-- Created 5 prizes (Grand Prix, Smartphone, Bon 50€, Bon 10€, Perdu) with colors and probabilities
-- Generated 10 promotional codes
-- Tested wheel spin functionality - user can enter code, spin, and see results
-- Tested Admin dashboard - all 10 tabs render correctly with data
-- Tested TV display - dark immersive layout with wheel, winners feed, promo banner
-- Verified dev server has no errors, lint passes cleanly
-- Used Agent Browser for end-to-end verification of all three views
-
-Stage Summary:
-- All API response format issues fixed across 11+ component files
-- End-to-end testing verified: Wheel spin works, Admin dashboard fully functional, TV display renders
-- Campaign created with 5 prizes, 10 codes, 2 spins completed successfully
-- No browser errors, no dev server errors, lint passes cleanly
-- Application is fully functional and ready for use
-
----
-Task ID: 9
-Agent: main
-Task: Remove probability system — tickets now determine winning/losing status
-
-Work Log:
-- Removed `probability Int @default(10)` from Prize model in Prisma schema
-- Ran `bun run db:push` to migrate database (accepted data loss for probability column)
-- Ran `bunx prisma generate` to regenerate Prisma Client
-- Updated TypeScript types: removed `probability` from Prize interface
-- Updated prize-panel.tsx: removed probability from table columns, create/edit form fields; replaced "Probabilité" column with "Type" column showing Gagnant/Perdant badge
-- Updated prizes API route (POST create): removed probability parameter
-- Updated prizes/[id] API route (PUT update): removed probability parameter
-- Rewrote codes API route (POST generate): changed from `{campaignId, count, prizeIds}` to `{campaignId, count, result, prizeId}` where result is "winning" or "losing"; prizeId required for winning tickets
-- Rewrote spin API route: removed `selectPrizeByProbability` function; spin result now determined by ticket's predetermined result and prizeId; for winning tickets, wheel lands on assigned prize sector; for losing tickets, wheel lands on a losing sector
-- Rewrote code-panel.tsx: redesigned generate dialog with two buttons ("🏆 Gagnant" and "💨 Perdant") to select ticket type; winning tickets require prize selection; losing tickets need no prize; includes summary section; also updated result badges for unused tickets
-- Updated wheel-config-panel.tsx: changed SVG wheel preview from probability-weighted sectors to equal-sized sectors
-- Updated api.ts: changed codesApi.generate signature from `{campaignId, count, prizeIds}` to `{campaignId, count, result, prizeId}`
-- Fixed syntax error in code-panel.tsx (missing closing parenthesis on onChange handler)
-- Lint check passed
-- Tested API endpoints: prizes listing, winning code generation, losing code generation, spin with winning code (isWinning:true, lands on Grand Prix), spin with losing code (isWinning:false, lands on losing sector)
-- Browser verification: wheel view, admin dashboard, prize panel (no probability column), code panel (new generate dialog), wheel config (equal-sized preview)
-
-Stage Summary:
-- Probability system completely removed from the platform
-- Tickets now determine winning/losing status at creation time
-- Wheel sectors are equal-sized (no probability weighting)
-- Admin generates tickets as "Gagnant" or "Perdant" batches
-- Winning tickets must be assigned to a specific prize/sector
-- The wheel just visually displays the predetermined result
-- All APIs, UIs, and database schema updated consistently
-- No browser errors, lint passes, application fully functional
+- Complete overhaul of the Roue de la Chance platform with festive, modern UX
+- Ticket-based outcome system (no probability): tickets carry gagnant/perdant status, wheel just animates
+- Session-based code queue: users add multiple codes, each spin consumes one
+- 3D wheel with Canvas rendering: shadows, gradients, gold rim, animated lights
+- Confetti celebration effects on winning (canvas-confetti library)
+- 10-sector wheel with configurable losing sector count (2, 3, 4, etc.)
+- Prize model enhanced with imageUrl, quantity, sectorPosition
+- Code generation defaults to "Perdant" status
+- Sound toggle support
+- All API routes updated for new fields

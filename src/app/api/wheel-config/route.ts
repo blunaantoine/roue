@@ -16,7 +16,25 @@ export async function GET(request: NextRequest) {
     });
 
     if (!wheelConfig) {
-      return NextResponse.json({ error: 'Wheel config not found for this campaign' }, { status: 404 });
+      // Auto-create default wheel config
+      const newConfig = await db.wheelConfig.create({
+        data: {
+          campaignId,
+          sectorCount: 10,
+          losingSectorCount: 4,
+          spinDuration: 5000,
+          minRotations: 3,
+          maxRotations: 7,
+          pointerColor: '#FF0000',
+          centerColor: '#FFFFFF',
+          outerRingColor: '#333333',
+          backgroundColor: '#1a1a2e',
+          textColor: '#FFFFFF',
+          fontSize: 14,
+          soundEnabled: true,
+        },
+      });
+      return NextResponse.json(newConfig);
     }
 
     return NextResponse.json(wheelConfig);
@@ -32,6 +50,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const {
       campaignId,
+      sectorCount,
+      losingSectorCount,
       spinDuration,
       minRotations,
       maxRotations,
@@ -41,6 +61,7 @@ export async function PUT(request: NextRequest) {
       backgroundColor,
       textColor,
       fontSize,
+      soundEnabled,
     } = body;
 
     if (!campaignId) {
@@ -49,12 +70,32 @@ export async function PUT(request: NextRequest) {
 
     const existing = await db.wheelConfig.findUnique({ where: { campaignId } });
     if (!existing) {
-      return NextResponse.json({ error: 'Wheel config not found for this campaign' }, { status: 404 });
+      // Create if not exists
+      const newConfig = await db.wheelConfig.create({
+        data: {
+          campaignId,
+          sectorCount: sectorCount ?? 10,
+          losingSectorCount: losingSectorCount ?? 4,
+          spinDuration: spinDuration ?? 5000,
+          minRotations: minRotations ?? 3,
+          maxRotations: maxRotations ?? 7,
+          pointerColor: pointerColor ?? '#FF0000',
+          centerColor: centerColor ?? '#FFFFFF',
+          outerRingColor: outerRingColor ?? '#333333',
+          backgroundColor: backgroundColor ?? '#1a1a2e',
+          textColor: textColor ?? '#FFFFFF',
+          fontSize: fontSize ?? 14,
+          soundEnabled: soundEnabled ?? true,
+        },
+      });
+      return NextResponse.json({ wheelConfig: newConfig });
     }
 
     const wheelConfig = await db.wheelConfig.update({
       where: { campaignId },
       data: {
+        ...(sectorCount !== undefined && { sectorCount }),
+        ...(losingSectorCount !== undefined && { losingSectorCount }),
         ...(spinDuration !== undefined && { spinDuration }),
         ...(minRotations !== undefined && { minRotations }),
         ...(maxRotations !== undefined && { maxRotations }),
@@ -64,6 +105,7 @@ export async function PUT(request: NextRequest) {
         ...(backgroundColor !== undefined && { backgroundColor }),
         ...(textColor !== undefined && { textColor }),
         ...(fontSize !== undefined && { fontSize }),
+        ...(soundEnabled !== undefined && { soundEnabled }),
       },
     });
 
@@ -77,7 +119,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(wheelConfig);
+    return NextResponse.json({ wheelConfig });
   } catch (error) {
     console.error('Error updating wheel config:', error);
     return NextResponse.json({ error: 'Failed to update wheel config' }, { status: 500 });

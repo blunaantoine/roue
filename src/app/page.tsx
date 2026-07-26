@@ -6,9 +6,20 @@ import { useSocket } from '@/hooks/use-socket';
 import { WheelView } from '@/components/wheel/wheel-view';
 import { AdminDashboard } from '@/components/admin/admin-dashboard';
 import { TVDisplay } from '@/components/tv/tv-display';
+import { Button } from '@/components/ui/button';
+import { Volume2, VolumeX } from 'lucide-react';
 
 export default function Home() {
-  const { currentView, setCurrentView, currentCampaignId, setCurrentCampaignId, campaign, setCampaign } = useAppStore();
+  const {
+    currentView,
+    setCurrentView,
+    currentCampaignId,
+    setCurrentCampaignId,
+    campaign,
+    setCampaign,
+    soundEnabled,
+    setSoundEnabled,
+  } = useAppStore();
 
   // Load default campaign on mount
   useEffect(() => {
@@ -20,7 +31,6 @@ export default function Home() {
         if (campaignList.length > 0) {
           const firstCampaign = campaignList[0];
           setCurrentCampaignId(firstCampaign.id);
-          // Load full campaign details (with prizes and wheelConfig)
           const detailRes = await fetch(`/api/campaigns/${firstCampaign.id}`);
           const campaignData = await detailRes.json();
           const fullCampaign = campaignData.campaign || campaignData;
@@ -38,43 +48,55 @@ export default function Home() {
   useSocket();
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 border-b bg-card shadow-sm">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#0f0c29] via-[#302b63] to-[#24243e]">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur-md shadow-lg">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">★</span>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 via-yellow-500 to-red-500 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-pulse">
+              <span className="text-white font-bold text-lg">★</span>
             </div>
-            <h1 className="text-lg font-bold tracking-tight">Roue de la Chance</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-lg">
+              🎡 Roue de la Chance
+            </h1>
           </div>
           <div className="flex items-center gap-2">
+            {currentView === 'wheel' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="text-white/70 hover:text-white hover:bg-white/10"
+              >
+                {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              </Button>
+            )}
             <nav className="flex gap-1">
               <button
                 onClick={() => setCurrentView('wheel')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   currentView === 'wheel'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
+                    ? 'bg-gradient-to-r from-amber-400 to-red-500 text-white shadow-lg shadow-amber-500/30'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
                 }`}
               >
                 🎡 Roue
               </button>
               <button
                 onClick={() => setCurrentView('admin')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   currentView === 'admin'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
+                    ? 'bg-gradient-to-r from-amber-400 to-red-500 text-white shadow-lg shadow-amber-500/30'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
                 }`}
               >
                 ⚙️ Admin
               </button>
               <button
                 onClick={() => setCurrentView('tv')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   currentView === 'tv'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
+                    ? 'bg-gradient-to-r from-amber-400 to-red-500 text-white shadow-lg shadow-amber-500/30'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
                 }`}
               >
                 📺 TV
@@ -90,8 +112,8 @@ export default function Home() {
         {currentView === 'tv' && <TVDisplay />}
       </main>
 
-      <footer className="border-t bg-card mt-auto">
-        <div className="container mx-auto px-4 py-2 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-white/10 bg-black/40 backdrop-blur-md mt-auto">
+        <div className="container mx-auto px-4 py-3 text-center text-xs text-white/50">
           Roue de la Chance — Plateforme Promotionnelle &copy; {new Date().getFullYear()}
         </div>
       </footer>

@@ -69,11 +69,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Generate codes with predetermined result
-// Body: { campaignId, count, result: "winning" | "losing", prizeId?: string }
-// - result is required: determines if the ticket is winning or losing
-// - prizeId is required when result="winning": which prize the ticket is assigned to
-// - prizeId is ignored when result="losing"
+// POST: Generate codes
+// Body: { campaignId, count, result?: "winning" | "losing" (default: "losing"), prizeId?: string }
+// - result defaults to "losing" (Perdant) - admin can later assign prizes
+// - prizeId is optional, required only when result="winning"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -83,7 +82,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'campaignId and count are required' }, { status: 400 });
     }
 
-    if (!result || (result !== 'winning' && result !== 'losing')) {
+    // Default to "losing" if no result specified
+    const codeResult = result || 'losing';
+    if (codeResult !== 'winning' && codeResult !== 'losing') {
       return NextResponse.json({ error: 'result must be "winning" or "losing"' }, { status: 400 });
     }
 
@@ -97,9 +98,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    // For winning tickets, prizeId is required and must be a valid non-losing prize
+    // For winning tickets, prizeId must be a valid non-losing prize
     let validatedPrizeId: string | null = null;
-    if (result === 'winning') {
+    if (codeResult === 'winning') {
       if (!prizeId) {
         return NextResponse.json({ error: 'prizeId is required for winning tickets' }, { status: 400 });
       }
@@ -115,11 +116,11 @@ export async function POST(request: NextRequest) {
 
     const codeValues = await generateUniqueCodeValues(count);
 
-    // Create codes with predetermined result
+    // Create codes with result (default: losing/Perdant)
     const codesToCreate = codeValues.map((value) => ({
       value,
       campaignId,
-      result,
+      result: codeResult,
       prizeId: validatedPrizeId,
     }));
 
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
     await db.adminLog.create({
       data: {
         action: 'generate_codes',
-        details: `Generated ${count} ${result} codes for campaign ${campaignId}${validatedPrizeId ? `, prize: ${validatedPrizeId}` : ''}`,
+        details: `Generated ${count} ${codeResult} codes for campaign ${campaignId}${validatedPrizeId ? `, prize: ${validatedPrizeId}` : ''}`,
         adminName: 'admin',
         campaignId,
       },
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       count: createdCodes.count,
-      result,
+      result: codeResult,
       prizeId: validatedPrizeId,
     }, { status: 201 });
   } catch (error) {

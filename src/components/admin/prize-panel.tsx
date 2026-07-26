@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import { prizesApi } from '@/lib/api';
 import { useAppStore } from '@/stores/app-store';
 import { Prize } from '@/types';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Loader2, ImageIcon } from 'lucide-react';
 
 export function PrizePanel() {
   const { currentCampaignId } = useAppStore();
@@ -40,18 +41,26 @@ export function PrizePanel() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    imageUrl: '',
     color: '#FF6B35',
+    icon: '',
     isLosing: false,
     sectorLabel: '',
+    sectorPosition: null as number | null,
+    quantity: null as number | null,
     sortOrder: 0,
   });
 
   const [editData, setEditData] = useState({
     name: '',
     description: '',
+    imageUrl: '',
     color: '#FF6B35',
+    icon: '',
     isLosing: false,
     sectorLabel: '',
+    sectorPosition: null as number | null,
+    quantity: null as number | null,
     sortOrder: 0,
   });
 
@@ -89,15 +98,19 @@ export function PrizePanel() {
       await prizesApi.create({
         name: formData.name,
         description: formData.description,
+        imageUrl: formData.imageUrl || undefined,
         color: formData.color,
+        icon: formData.icon || undefined,
         isLosing: formData.isLosing,
-        sectorLabel: formData.sectorLabel,
+        sectorLabel: formData.sectorLabel || undefined,
+        sectorPosition: formData.sectorPosition,
+        quantity: formData.quantity,
         sortOrder: formData.sortOrder,
         campaignId: currentCampaignId,
       });
       toast.success('Lot créé avec succès');
       setShowCreate(false);
-      setFormData({ name: '', description: '', color: '#FF6B35', isLosing: false, sectorLabel: '', sortOrder: 0 });
+      setFormData({ name: '', description: '', imageUrl: '', color: '#FF6B35', icon: '', isLosing: false, sectorLabel: '', sectorPosition: null, quantity: null, sortOrder: 0 });
       await loadPrizes();
     } catch (error) {
       toast.error('Erreur lors de la création');
@@ -113,9 +126,13 @@ export function PrizePanel() {
       await prizesApi.update(id, {
         name: editData.name,
         description: editData.description,
+        imageUrl: editData.imageUrl,
         color: editData.color,
+        icon: editData.icon,
         isLosing: editData.isLosing,
         sectorLabel: editData.sectorLabel,
+        sectorPosition: editData.sectorPosition,
+        quantity: editData.quantity,
         sortOrder: editData.sortOrder,
       });
       toast.success('Lot mis à jour');
@@ -164,9 +181,13 @@ export function PrizePanel() {
     setEditData({
       name: prize.name,
       description: prize.description || '',
+      imageUrl: prize.imageUrl || '',
       color: prize.color,
+      icon: prize.icon || '',
       isLosing: prize.isLosing,
       sectorLabel: prize.sectorLabel || '',
+      sectorPosition: prize.sectorPosition,
+      quantity: prize.quantity,
       sortOrder: prize.sortOrder,
     });
   }
@@ -184,8 +205,10 @@ export function PrizePanel() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Gestion des Lots</CardTitle>
-        <Button onClick={() => setShowCreate(true)} size="sm" className="gap-1.5">
+        <CardTitle className="flex items-center gap-2">
+          🎁 Gestion des Lots
+        </CardTitle>
+        <Button onClick={() => setShowCreate(true)} size="sm" className="gap-1.5 bg-gradient-to-r from-amber-400 to-red-500 text-white">
           <Plus className="size-4" />
           Nouveau Lot
         </Button>
@@ -205,10 +228,11 @@ export function PrizePanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Ordre</TableHead>
+                  <TableHead>Image</TableHead>
                   <TableHead>Couleur</TableHead>
                   <TableHead>Nom</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Label</TableHead>
+                  <TableHead>Qté</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -217,7 +241,22 @@ export function PrizePanel() {
                   <TableRow key={prize.id}>
                     {editingId === prize.id ? (
                       <>
-                        <TableCell>{prize.sortOrder}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={editData.sortOrder}
+                            onChange={(e) => setEditData({ ...editData, sortOrder: Number(e.target.value) })}
+                            className="h-8 w-16"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={editData.imageUrl}
+                            onChange={(e) => setEditData({ ...editData, imageUrl: e.target.value })}
+                            placeholder="URL de l'image"
+                            className="h-8"
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Input
@@ -244,9 +283,11 @@ export function PrizePanel() {
                         </TableCell>
                         <TableCell>
                           <Input
-                            value={editData.sectorLabel}
-                            onChange={(e) => setEditData({ ...editData, sectorLabel: e.target.value })}
-                            className="h-8 w-24"
+                            type="number"
+                            value={editData.quantity ?? ''}
+                            onChange={(e) => setEditData({ ...editData, quantity: e.target.value ? Number(e.target.value) : null })}
+                            className="h-8 w-16"
+                            placeholder="∞"
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -273,6 +314,15 @@ export function PrizePanel() {
                           </div>
                         </TableCell>
                         <TableCell>
+                          {prize.imageUrl ? (
+                            <img src={prize.imageUrl} alt={prize.name} className="size-8 rounded object-cover" />
+                          ) : (
+                            <div className="size-8 rounded bg-muted flex items-center justify-center">
+                              <ImageIcon className="size-3 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <div
                               className="size-6 rounded border"
@@ -287,7 +337,7 @@ export function PrizePanel() {
                             {prize.isLosing ? 'Perdant' : 'Gagnant'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{prize.sectorLabel || '-'}</TableCell>
+                        <TableCell>{prize.quantity ?? '∞'}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
                             <Button size="sm" variant="ghost" onClick={() => startEdit(prize)} className="h-7">
@@ -314,7 +364,7 @@ export function PrizePanel() {
 
         {/* Create Dialog */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Nouveau Lot</DialogTitle>
               <DialogDescription>Ajoutez un nouveau lot/secteur à la roue.</DialogDescription>
@@ -326,20 +376,44 @@ export function PrizePanel() {
                   id="prize-name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nom du lot"
+                  placeholder="Nom du lot (ex: Sac de riz 25 kg)"
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="prize-description">Description</Label>
-                <Input
+                <Textarea
                   id="prize-description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Description du lot"
+                  rows={2}
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Couleur</Label>
+                <Label htmlFor="prize-image">Image URL</Label>
+                <Input
+                  id="prize-image"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                />
+                {formData.imageUrl && (
+                  <div className="mt-1 flex justify-center">
+                    <img src={formData.imageUrl} alt="Preview" className="max-w-16 max-h-16 rounded object-contain border" />
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="prize-icon">Icône (emoji)</Label>
+                <Input
+                  id="prize-icon"
+                  value={formData.icon}
+                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                  placeholder="🛢️ 📺 🎁"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Couleur du secteur</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="color"
@@ -363,14 +437,26 @@ export function PrizePanel() {
                   placeholder="Texte affiché sur la roue"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="prize-sort-order">Ordre de tri</Label>
-                <Input
-                  id="prize-sort-order"
-                  type="number"
-                  value={formData.sortOrder}
-                  onChange={(e) => setFormData({ ...formData, sortOrder: Number(e.target.value) })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="prize-quantity">Quantité disponible</Label>
+                  <Input
+                    id="prize-quantity"
+                    type="number"
+                    value={formData.quantity ?? ''}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="∞ (illimité)"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="prize-sort-order">Ordre de tri</Label>
+                  <Input
+                    id="prize-sort-order"
+                    type="number"
+                    value={formData.sortOrder}
+                    onChange={(e) => setFormData({ ...formData, sortOrder: Number(e.target.value) })}
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
@@ -394,7 +480,7 @@ export function PrizePanel() {
               <Button variant="ghost" onClick={() => setShowCreate(false)}>
                 Annuler
               </Button>
-              <Button onClick={handleCreate}>Créer</Button>
+              <Button onClick={handleCreate} className="bg-gradient-to-r from-amber-400 to-red-500 text-white">Créer</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
