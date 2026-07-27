@@ -13,7 +13,7 @@ const RIM_WIDTH = 14;                 // Width of the golden rim ring
 const RIVET_RADIUS = 4;              // Radius of decorative rivets on rim
 const LIGHT_RADIUS = 3.5;            // Radius of decorative lights around rim
 const LIGHT_COUNT_MULTIPLIER = 2;    // Number of lights per sector
-const CENTER_HUB_RADIUS = 36;        // Center hub circle radius
+const CENTER_HUB_RADIUS = 38;        // Center hub circle radius
 const MAX_CANVAS_SIZE = 560;         // Max canvas dimension in px
 const TEXT_FONT_SIZE = 16;           // Sector label font size
 const TEXT_RADIUS_RATIO = 0.65;      // Position text at 65% of the radius
@@ -97,6 +97,11 @@ export function SpinWheel({
       // Clear the entire canvas
       ctx.clearRect(0, 0, size, size);
 
+      // ── 0. Fill entire canvas with opaque black background
+      // This prevents ANY transparency — the gradient background of the page will NOT show through
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, size, size);
+
       // ── 1. Opaque dark background circle ──────────────────────────────
       // This prevents any transparency showing through
       ctx.save();
@@ -160,19 +165,32 @@ export function SpinWheel({
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // ── Sector text (horizontal, positioned along arc) ────────────
+        // ── Sector text (horizontal, readable from outside) ──────────
         ctx.save();
-        // Position the text at 65% of the radius along the mid-angle
         const textRadius = radius * TEXT_RADIUS_RATIO;
         const textX = Math.cos(midAngleRad) * textRadius;
         const textY = Math.sin(midAngleRad) * textRadius;
 
+        // In canvas coordinates, y increases downward.
+        // Sectors where textY > 0 are in the BOTTOM half of the screen.
+        // For those sectors, we flip the text (add π rotation) so it reads
+        // correctly from outside the wheel instead of appearing upside-down.
+        // We check the actual screen position including the wheel rotation.
+        const actualTextY = Math.sin(midAngleRad + rotationRad) * textRadius;
+        const isBottomHalf = actualTextY > 0;
+
         ctx.translate(textX, textY);
-        // Counter-rotate to keep text horizontal (undo the wheel rotation + sector rotation)
-        ctx.rotate(-rotationRad - midAngleRad);
+
+        if (isBottomHalf) {
+          // Bottom-half: flip text so it reads from outside (top of text faces outward)
+          ctx.rotate(-rotationRad - midAngleRad + Math.PI);
+        } else {
+          // Top-half: normal horizontal text (top of text faces inward/center)
+          ctx.rotate(-rotationRad - midAngleRad);
+        }
 
         // Determine max characters based on sector angle
-        const maxChars = Math.max(4, Math.floor(sectorAngle / 7));
+        const maxChars = Math.max(5, Math.floor(sectorAngle / 6));
         const labelText = truncateLabel(sector.label, maxChars);
 
         ctx.fillStyle = '#FFFFFF';
@@ -327,9 +345,9 @@ export function SpinWheel({
 
       // ── 8. Golden triangle pointer with red jewel (fixed at top) ──────
       ctx.save();
-      const pointerTipY = centerY - radius + 2; // Tip just touches the sector edge
-      const pointerBaseY = centerY - outerRadius - 18;
-      const pointerHalfWidth = 18;
+      const pointerTipY = centerY - radius + 8; // Tip goes further into the wheel for visibility
+      const pointerBaseY = centerY - outerRadius - 28;
+      const pointerHalfWidth = 22;
 
       // Pointer shadow
       ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
@@ -512,30 +530,12 @@ export function SpinWheel({
         />
       </div>
 
-      {/* Canvas wheel */}
+      {/* Canvas wheel - opaque black background prevents transparency */}
       <canvas
         ref={canvasRef}
-        className="relative z-10 max-w-full"
-        style={{ aspectRatio: '1 / 1' }}
+        className="relative z-10 max-w-full rounded-full"
+        style={{ aspectRatio: '1 / 1', background: '#000000' }}
       />
-
-      {/* Logo overlay positioned at center of canvas */}
-      {/* The logo is rendered as an HTML element on top of the canvas center */}
-      {/* Since the canvas center is black with a golden border, the logo sits on top */}
-      <div
-        className="absolute z-20 pointer-events-none flex items-center justify-center"
-        style={{
-          width: CENTER_HUB_RADIUS * 2,
-          height: CENTER_HUB_RADIUS * 2,
-          // Center it within the canvas
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-        }}
-      >
-        {/* Logo image - uncomment when logo.png is available */}
-        {/* <Image src="/logo.png" alt="Logo" width={48} height={48} className="object-contain" /> */}
-      </div>
     </div>
   );
 }

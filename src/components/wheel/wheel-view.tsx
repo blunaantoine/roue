@@ -312,7 +312,7 @@ export function WheelView() {
           🎡 ROUE DE LA CHANCE
         </h2>
         <div className="mt-2 flex items-center justify-center gap-3">
-          <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5 text-base font-semibold backdrop-blur-sm">
+          <Badge className="bg-gray-800 text-white border-gray-600 px-4 py-1.5 text-base font-semibold">
             <Ticket className="size-4 mr-1.5" />
             Tours disponibles : {availableSpins}
           </Badge>
@@ -320,7 +320,7 @@ export function WheelView() {
       </div>
 
       {/* Wheel */}
-      <div className="relative w-full max-w-lg mx-auto">
+      <div className="relative w-full max-w-xl mx-auto">
         {wheelSectors.length > 0 ? (
           <SpinWheel
             sectors={wheelSectors}
@@ -330,7 +330,7 @@ export function WheelView() {
             soundEnabled={soundEnabled}
           />
         ) : (
-          <div className="flex items-center justify-center aspect-square bg-white/10 rounded-full border border-white/20">
+          <div className="flex items-center justify-center aspect-square bg-gray-900 rounded-full border border-gray-600">
             <p className="text-white/50 text-center px-8">
               Configurez les lots dans l&apos;administration pour voir la roue
             </p>
@@ -360,7 +360,7 @@ export function WheelView() {
 
         <Button
           onClick={() => setTvMode(true)}
-          className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/20 gap-2 disabled:!opacity-100"
+          className="w-full sm:w-auto bg-slate-700 hover:bg-slate-800 text-white gap-2 disabled:!opacity-100"
           disabled={isSpinning}
           title="Mode Télé"
         >
@@ -371,7 +371,7 @@ export function WheelView() {
 
       {/* Session codes list */}
       {sessionCodes.length > 0 && (
-        <div className="w-full max-w-md bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 p-4">
+        <div className="w-full max-w-md bg-gray-900 rounded-xl border border-gray-600 p-4">
           <h3 className="text-sm font-semibold text-white/80 mb-2">Vos codes :</h3>
           <div className="space-y-1.5 max-h-32 overflow-y-auto">
             {sessionCodes.map((code, idx) => (
@@ -413,7 +413,7 @@ export function WheelView() {
           {/* Quit button */}
           <button
             onClick={() => setTvMode(false)}
-            className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-lg"
           >
             <X className="size-4" />
             Quitter Mode Télé
@@ -427,7 +427,7 @@ export function WheelView() {
                 🎡 ROUE DE LA CHANCE
               </h2>
               <div className="mt-2 flex items-center justify-center gap-3">
-                <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5 text-base font-semibold backdrop-blur-sm">
+                <Badge className="bg-gray-800 text-white border-gray-600 px-4 py-1.5 text-base font-semibold">
                   <Ticket className="size-4 mr-1.5" />
                   Tours disponibles : {availableSpins}
                 </Badge>
@@ -435,7 +435,7 @@ export function WheelView() {
             </div>
 
             {/* Wheel - larger in TV mode */}
-            <div className="relative w-full max-w-[700px] mx-auto">
+            <div className="relative w-full max-w-[750px] mx-auto">
               {wheelSectors.length > 0 ? (
                 <SpinWheel
                   sectors={wheelSectors}
@@ -445,7 +445,7 @@ export function WheelView() {
                   soundEnabled={soundEnabled}
                 />
               ) : (
-                <div className="flex items-center justify-center aspect-square bg-white/10 rounded-full border border-white/20">
+                <div className="flex items-center justify-center aspect-square bg-gray-900 rounded-full border border-gray-600">
                   <p className="text-white/50 text-center px-8">
                     Configurez les lots dans l&apos;administration pour voir la roue
                   </p>
