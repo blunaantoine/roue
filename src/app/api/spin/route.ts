@@ -44,48 +44,45 @@ export async function POST(request: NextRequest) {
     const sectorCount = wheelConfig?.sectorCount ?? 10;
     const losingSectorCount = wheelConfig?.losingSectorCount ?? 4;
 
-    // Build the wheel sectors: losing sectors + winning prize sectors
+    // Build the wheel sectors using alternating Green/Black/Gold pattern
+    // This matches the design: both winning and losing sectors appear on all colors
     const losingPrizes = code.campaign.prizes.filter(p => p.isLosing);
     const winningPrizes = code.campaign.prizes.filter(p => !p.isLosing);
+    const winningSectorCount = sectorCount - losingSectorCount;
 
-    // Build wheel sectors array (10 sectors total)
-    // Losing sectors first, then winning prize sectors
+    // Alternating pattern: Green(0), Black(1), Gold(2) — repeats
+    const COLOR_PATTERN = ['#1B8137', '#1C1C1C', '#D4AF37'];
+
     const wheelSectors: { prizeId: string | null; prize: any; isLosing: boolean; label: string; color: string }[] = [];
 
-    // Add losing sectors
-    for (let i = 0; i < losingSectorCount; i++) {
-      // Distribute losing prizes across losing sectors
-      const losingPrize = losingPrizes[i % losingPrizes.length] || losingPrizes[0];
-      wheelSectors.push({
-        prizeId: losingPrize?.id ?? null,
-        prize: losingPrize,
-        isLosing: true,
-        label: losingPrize?.sectorLabel || losingPrize?.name || 'Perdant',
-        color: losingPrize?.color || '#374151',
-      });
-    }
+    let winningIdx = 0;
+    let losingIdx = 0;
 
-    // Add winning prize sectors
-    for (const prize of winningPrizes) {
-      wheelSectors.push({
-        prizeId: prize.id,
-        prize: prize,
-        isLosing: false,
-        label: prize.sectorLabel || prize.name,
-        color: prize.color,
-      });
-    }
+    for (let i = 0; i < sectorCount; i++) {
+      const patternIndex = i % 3;
+      const patternColor = COLOR_PATTERN[patternIndex];
 
-    // If we have fewer sectors than sectorCount, fill remaining with losing sectors
-    while (wheelSectors.length < sectorCount) {
-      const losingPrize = losingPrizes[0] || losingPrizes[0];
-      wheelSectors.push({
-        prizeId: losingPrize?.id ?? null,
-        prize: losingPrize,
-        isLosing: true,
-        label: losingPrize?.sectorLabel || 'Perdant',
-        color: losingPrize?.color || '#374151',
-      });
+      if (winningIdx < winningPrizes.length && winningIdx < winningSectorCount) {
+        const prize = winningPrizes[winningIdx];
+        wheelSectors.push({
+          prizeId: prize.id,
+          prize: prize,
+          isLosing: false,
+          label: prize.sectorLabel || prize.name,
+          color: patternColor,
+        });
+        winningIdx++;
+      } else {
+        const losingPrize = losingPrizes[losingIdx % (losingPrizes.length || 1)] || losingPrizes[0];
+        wheelSectors.push({
+          prizeId: losingPrize?.id ?? null,
+          prize: losingPrize,
+          isLosing: true,
+          label: losingPrize?.sectorLabel || losingPrize?.name || 'PERDU',
+          color: patternColor,
+        });
+        losingIdx++;
+      }
     }
 
     // If we have more sectors than sectorCount, truncate

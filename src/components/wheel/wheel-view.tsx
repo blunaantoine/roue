@@ -69,47 +69,61 @@ export function WheelView() {
     loadData();
   }, [currentCampaignId]);
 
-  // Build wheel sectors
+  // Build wheel sectors using alternating Green/Black/Gold pattern
+  // In the design, both winning AND losing sectors appear on ALL colors
+  // The color is determined by POSITION, not by prize type
   useEffect(() => {
     if (!wheelConfig || prizes.length === 0) { setWheelSectors([]); return; }
 
     const sectorCount = wheelConfig.sectorCount;
     const losingSectorCount = wheelConfig.losingSectorCount;
+    const winningSectorCount = sectorCount - losingSectorCount;
+
     const losingPrizes = prizes.filter(p => p.isLosing);
     const winningPrizes = prizes.filter(p => !p.isLosing);
 
     const sectors: WheelSector[] = [];
 
-    // Add losing sectors
-    for (let i = 0; i < losingSectorCount; i++) {
-      const losingPrize = losingPrizes[i % (losingPrizes.length || 1)] || {
-        id: `losing-${i}`, name: 'Perdant', color: '#1a1a1a',
-        sectorLabel: 'PERDU', isLosing: true,
-      } as Prize;
-      sectors.push({
-        position: i, prizeId: losingPrize.id, prize: losingPrize,
-        label: losingPrize.sectorLabel || losingPrize.name || 'PERDU',
-        color: losingPrize.color || '#1a1a1a', isLosing: true,
-      });
-    }
+    // Alternating pattern: Green(0), Black(1), Gold(2) — repeats
+    // We distribute winning prizes across all positions first,
+    // then fill remaining positions with losing sectors
+    // This matches the design where winning/losing items appear on all colors
 
-    // Add winning prize sectors
-    for (const prize of winningPrizes) {
-      sectors.push({
-        position: sectors.length, prizeId: prize.id, prize: prize,
-        label: prize.sectorLabel || prize.name, color: prize.color, isLosing: false,
-      });
-    }
+    // Strategy: place winning prizes on specific positions, losing on others
+    // Use the design pattern: winning on Green and Gold positions, losing on Black positions
+    // But some losing also appear on Green/Gold (like PERDU on Gold position 9)
 
-    while (sectors.length < sectorCount) {
-      const losingPrize = losingPrizes[0] || {
-        id: `losing-extra`, name: 'Perdant', color: '#1a1a1a',
-        sectorLabel: 'PERDU', isLosing: true,
-      } as Prize;
-      sectors.push({
-        position: sectors.length, prizeId: losingPrize.id, prize: losingPrize,
-        label: losingPrize.sectorLabel || 'PERDU', color: losingPrize.color || '#1a1a1a', isLosing: true,
-      });
+    // For simplicity: interleave winning and losing to match the visual pattern
+    // Winning sectors first, then distribute losing in remaining spots
+    let winningIdx = 0;
+    let losingIdx = 0;
+
+    for (let i = 0; i < sectorCount; i++) {
+      const patternIndex = i % 3; // 0=Green, 1=Black, 2=Gold
+
+      // Allocate winning prizes first, then losing for remaining
+      if (winningIdx < winningPrizes.length && winningIdx < winningSectorCount) {
+        const prize = winningPrizes[winningIdx];
+        sectors.push({
+          position: i, prizeId: prize.id, prize: prize,
+          label: prize.sectorLabel || prize.name,
+          color: patternIndex === 0 ? '#1B8137' : patternIndex === 1 ? '#1C1C1C' : '#D4AF37',
+          isLosing: false,
+        });
+        winningIdx++;
+      } else {
+        const losingPrize = losingPrizes[losingIdx % (losingPrizes.length || 1)] || {
+          id: `losing-${i}`, name: 'Perdant',
+          sectorLabel: 'PERDU', isLosing: true,
+        } as Prize;
+        sectors.push({
+          position: i, prizeId: losingPrize.id, prize: losingPrize,
+          label: losingPrize.sectorLabel || losingPrize.name || 'PERDU',
+          color: patternIndex === 0 ? '#1B8137' : patternIndex === 1 ? '#1C1C1C' : '#D4AF37',
+          isLosing: true,
+        });
+        losingIdx++;
+      }
     }
 
     while (sectors.length > sectorCount) { sectors.pop(); }
