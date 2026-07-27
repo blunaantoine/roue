@@ -1,4 +1,4 @@
-export type ViewMode = 'wheel' | 'admin' | 'tv';
+export type ViewMode = 'wheel' | 'admin';
 
 export interface Prize {
   id: string;

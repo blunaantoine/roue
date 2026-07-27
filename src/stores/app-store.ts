@@ -6,6 +6,12 @@ interface AppState {
   currentView: ViewMode;
   setCurrentView: (view: ViewMode) => void;
 
+  // Admin authentication
+  isAdminAuthenticated: boolean;
+  setIsAdminAuthenticated: (auth: boolean) => void;
+  adminPassword: string;
+  setAdminPassword: (password: string) => void;
+
   // Current campaign
   currentCampaignId: string | null;
   setCurrentCampaignId: (id: string | null) => void;
@@ -49,6 +55,11 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   currentView: 'wheel',
   setCurrentView: (view) => set({ currentView: view }),
+
+  isAdminAuthenticated: false,
+  setIsAdminAuthenticated: (auth) => set({ isAdminAuthenticated: auth }),
+  adminPassword: 'admin2024',
+  setAdminPassword: (password) => set({ adminPassword: password }),
 
   currentCampaignId: null,
   setCurrentCampaignId: (id) => set({ currentCampaignId: id }),

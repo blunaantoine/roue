@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { SpinWheel } from './spin-wheel';
-import { SpinForm } from './spin-form';
 import { SpinResult } from './spin-result';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { prizesApi, wheelConfigApi, codesApi } from '@/lib/api';
 import { Prize, WheelConfig, WheelSector } from '@/types';
 import { toast } from 'sonner';
-import { Plus, Ticket, X, Loader2, Monitor } from 'lucide-react';
+import { Plus, Ticket, X, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export function WheelView() {
@@ -46,11 +45,8 @@ export function WheelView() {
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const [codeInput, setCodeInput] = useState('');
   const [validating, setValidating] = useState(false);
-  const [showSpinForm, setShowSpinForm] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [currentSpinningCode, setCurrentSpinningCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tvMode, setTvMode] = useState(false);
 
   // Load prizes and wheel config
   useEffect(() => {
@@ -181,7 +177,7 @@ export function WheelView() {
         prize: data.assignedPrize || undefined,
       });
 
-      toast.success('✅ Code accepté ! Tour ajouté.');
+      toast.success('Code accepté ! Tour ajouté.');
       setCodeInput('');
       setShowCodeDialog(false);
     } catch (error: any) {
@@ -204,7 +200,6 @@ export function WheelView() {
     const codeToSpin = sessionCodes[0];
     if (!codeToSpin) return;
 
-    setCurrentSpinningCode(codeToSpin.codeValue);
     setIsSpinning(true);
 
     try {
@@ -303,185 +298,93 @@ export function WheelView() {
     );
   }
 
-  // Wheel content shared between normal and TV mode
-  const wheelContent = (
+  return (
     <>
-      {/* Title area */}
-      <div className="text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg tracking-wide">
-          🎡 ROUE DE LA CHANCE
-        </h2>
-        <div className="mt-2 flex items-center justify-center gap-3">
-          <Badge className="bg-gray-800 text-white border-gray-600 px-4 py-1.5 text-base font-semibold">
-            <Ticket className="size-4 mr-1.5" />
-            Tours disponibles : {availableSpins}
+      {/* Wheel content - mobile-friendly layout */}
+      <div className="flex flex-col items-center px-3 sm:px-4 py-4 sm:py-6 gap-4 sm:gap-6 max-w-4xl mx-auto">
+        {/* Title area */}
+        <div className="text-center">
+          <Badge className="bg-gray-800 text-white border-gray-600 px-3 sm:px-4 py-1 sm:py-1.5 text-sm sm:text-base font-semibold">
+            <Ticket className="size-3 sm:size-4 mr-1.5" />
+            Tours : {availableSpins}
           </Badge>
         </div>
-      </div>
 
-      {/* Wheel */}
-      <div className="relative w-full max-w-xl mx-auto">
-        {wheelSectors.length > 0 ? (
-          <SpinWheel
-            sectors={wheelSectors}
-            wheelConfig={wheelConfig}
-            isSpinning={isSpinning}
-            finalAngle={finalAngle}
-            soundEnabled={soundEnabled}
-          />
-        ) : (
-          <div className="flex items-center justify-center aspect-square bg-gray-900 rounded-full border border-gray-600">
-            <p className="text-white/50 text-center px-8">
-              Configurez les lots dans l&apos;administration pour voir la roue
-            </p>
+        {/* Wheel */}
+        <div className="relative w-full max-w-[340px] sm:max-w-[420px] md:max-w-xl mx-auto">
+          {wheelSectors.length > 0 ? (
+            <SpinWheel
+              sectors={wheelSectors}
+              wheelConfig={wheelConfig}
+              isSpinning={isSpinning}
+              finalAngle={finalAngle}
+              soundEnabled={soundEnabled}
+            />
+          ) : (
+            <div className="flex items-center justify-center aspect-square bg-gray-900 rounded-full border border-gray-600">
+              <p className="text-white/50 text-center px-8 text-sm">
+                Configurez les lots dans l&apos;administration pour voir la roue
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons - stack vertically on mobile */}
+        <div className="flex flex-col items-center gap-2 sm:gap-3 w-full max-w-xs sm:max-w-md">
+          <Button
+            onClick={handleSpin}
+            className={`w-full ${isSpinning || availableSpins <= 0 ? 'bg-gray-700' : 'bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600'} text-white shadow-lg font-bold text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 disabled:!opacity-100`}
+            disabled={isSpinning || availableSpins <= 0}
+          >
+            {isSpinning && <Loader2 className="size-4 sm:size-5 animate-spin mr-2" />}
+            {isSpinning ? 'En cours...' : 'TOURNER'}
+          </Button>
+
+          <Button
+            onClick={() => setShowCodeDialog(true)}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold gap-2 disabled:!opacity-100 text-sm sm:text-base"
+            disabled={isSpinning}
+          >
+            <Plus className="size-4" />
+            Ajouter un code
+          </Button>
+        </div>
+
+        {/* Session codes list */}
+        {sessionCodes.length > 0 && (
+          <div className="w-full max-w-xs sm:max-w-md bg-gray-900 rounded-xl border border-gray-600 p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-white/80 mb-2">Vos codes :</h3>
+            <div className="space-y-1.5 max-h-28 sm:max-h-32 overflow-y-auto">
+              {sessionCodes.map((code, idx) => (
+                <div key={code.codeValue} className="flex items-center justify-between bg-white/10 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <span className="text-xs text-white/50 shrink-0">#</span>
+                    <span className="font-mono text-xs sm:text-sm text-white truncate">{code.codeValue}</span>
+                    {code.result && (
+                      <Badge variant={code.result === 'winning' ? 'default' : 'destructive'} className="text-xs shrink-0">
+                        {code.result === 'winning' ? 'Gagnant' : 'Perdant'}
+                      </Badge>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removeSessionCode(code.codeValue)}
+                    className="text-white/50 hover:text-red-400 transition-colors shrink-0"
+                    disabled={isSpinning}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Action buttons */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
-        <Button
-          onClick={() => setShowCodeDialog(true)}
-          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold gap-2 disabled:!opacity-100"
-          disabled={isSpinning}
-        >
-          <Plus className="size-4" />
-          Ajouter un code
-        </Button>
-
-        <Button
-          onClick={handleSpin}
-          className={`w-full sm:w-auto ${isSpinning || availableSpins <= 0 ? 'bg-gray-700' : 'bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600'} text-white shadow-lg font-bold text-lg gap-2 px-8 py-4 disabled:!opacity-100`}
-          disabled={isSpinning || availableSpins <= 0}
-        >
-          {isSpinning && <Loader2 className="size-5 animate-spin" />}
-          {isSpinning ? 'En cours...' : 'TOURNER'}
-        </Button>
-
-        <Button
-          onClick={() => setTvMode(true)}
-          className="w-full sm:w-auto bg-slate-700 hover:bg-slate-800 text-white gap-2 disabled:!opacity-100"
-          disabled={isSpinning}
-          title="Mode Télé"
-        >
-          <Monitor className="size-5" />
-          TV
-        </Button>
-      </div>
-
-      {/* Session codes list */}
-      {sessionCodes.length > 0 && (
-        <div className="w-full max-w-md bg-gray-900 rounded-xl border border-gray-600 p-4">
-          <h3 className="text-sm font-semibold text-white/80 mb-2">Vos codes :</h3>
-          <div className="space-y-1.5 max-h-32 overflow-y-auto">
-            {sessionCodes.map((code, idx) => (
-              <div key={code.codeValue} className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/50">#{idx + 1}</span>
-                  <span className="font-mono text-sm text-white">{code.codeValue}</span>
-                  {code.result && (
-                    <Badge variant={code.result === 'winning' ? 'default' : 'destructive'} className="text-xs">
-                      {code.result === 'winning' ? 'Gagnant' : 'Perdant'}
-                    </Badge>
-                  )}
-                </div>
-                <button
-                  onClick={() => removeSessionCode(code.codeValue)}
-                  className="text-white/50 hover:text-red-400 transition-colors"
-                  disabled={isSpinning}
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
-
-  return (
-    <>
-      {/* Normal view */}
-      <div className="flex flex-col items-center px-4 py-6 gap-6 max-w-4xl mx-auto">
-        {wheelContent}
-      </div>
-
-      {/* TV Mode overlay */}
-      {tvMode && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
-          {/* Quit button */}
-          <button
-            onClick={() => setTvMode(false)}
-            className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-lg"
-          >
-            <X className="size-4" />
-            Quitter Mode Télé
-          </button>
-
-          {/* TV mode wheel content */}
-          <div className="flex flex-col items-center gap-6 w-full max-w-[700px] px-4">
-            {/* Title area */}
-            <div className="text-center">
-              <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg tracking-wide">
-                🎡 ROUE DE LA CHANCE
-              </h2>
-              <div className="mt-2 flex items-center justify-center gap-3">
-                <Badge className="bg-gray-800 text-white border-gray-600 px-4 py-1.5 text-base font-semibold">
-                  <Ticket className="size-4 mr-1.5" />
-                  Tours disponibles : {availableSpins}
-                </Badge>
-              </div>
-            </div>
-
-            {/* Wheel - larger in TV mode */}
-            <div className="relative w-full max-w-[750px] mx-auto">
-              {wheelSectors.length > 0 ? (
-                <SpinWheel
-                  sectors={wheelSectors}
-                  wheelConfig={wheelConfig}
-                  isSpinning={isSpinning}
-                  finalAngle={finalAngle}
-                  soundEnabled={soundEnabled}
-                />
-              ) : (
-                <div className="flex items-center justify-center aspect-square bg-gray-900 rounded-full border border-gray-600">
-                  <p className="text-white/50 text-center px-8">
-                    Configurez les lots dans l&apos;administration pour voir la roue
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
-              <Button
-                onClick={() => setShowCodeDialog(true)}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold gap-2 disabled:!opacity-100"
-                disabled={isSpinning}
-              >
-                <Plus className="size-4" />
-                Ajouter un code
-              </Button>
-
-              <Button
-                onClick={handleSpin}
-                className={`w-full sm:w-auto ${isSpinning || availableSpins <= 0 ? 'bg-gray-700' : 'bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600'} text-white shadow-lg font-bold text-lg gap-2 px-8 py-4 disabled:!opacity-100`}
-                disabled={isSpinning || availableSpins <= 0}
-              >
-                {isSpinning && <Loader2 className="size-5 animate-spin" />}
-                {isSpinning ? 'En cours...' : 'TOURNER'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Code entry dialog */}
       <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
-        <DialogContent className="bg-[#1a1a2e] border-white/20 text-white">
+        <DialogContent className="bg-[#1a1a2e] border-white/20 text-white max-w-sm mx-auto">
           <DialogHeader>
-            <DialogTitle className="text-white text-xl">🔑 Entrer votre code</DialogTitle>
+            <DialogTitle className="text-white text-xl">Entrer votre code</DialogTitle>
             <DialogDescription className="text-white/60">
               Saisissez le code que vous avez reçu pour obtenir un tour.
             </DialogDescription>
@@ -523,19 +426,6 @@ export function WheelView() {
         <SpinResult
           result={spinResult}
           onClose={() => setShowResult(false)}
-        />
-      )}
-
-      {/* Optional: Participant info form before spin */}
-      {showSpinForm && currentSpinningCode && (
-        <SpinForm
-          codeValue={currentSpinningCode}
-          onSubmit={(name, phone) => {
-            setShowSpinForm(false);
-          }}
-          onCancel={() => {
-            setShowSpinForm(false);
-          }}
         />
       )}
     </>
