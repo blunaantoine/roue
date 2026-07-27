@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { prizesApi, wheelConfigApi, codesApi } from '@/lib/api';
 import { Prize, WheelConfig, WheelSector } from '@/types';
 import { toast } from 'sonner';
-import { Plus, Ticket, X, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Ticket, X, Loader2, Monitor } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export function WheelView() {
@@ -50,6 +50,7 @@ export function WheelView() {
   const [showResult, setShowResult] = useState(false);
   const [currentSpinningCode, setCurrentSpinningCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tvMode, setTvMode] = useState(false);
 
   // Load prizes and wheel config
   useEffect(() => {
@@ -302,8 +303,9 @@ export function WheelView() {
     );
   }
 
-  return (
-    <div className="flex flex-col items-center px-4 py-6 gap-6 max-w-4xl mx-auto">
+  // Wheel content shared between normal and TV mode
+  const wheelContent = (
+    <>
       {/* Title area */}
       <div className="text-center">
         <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg tracking-wide">
@@ -340,7 +342,7 @@ export function WheelView() {
       <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
         <Button
           onClick={() => setShowCodeDialog(true)}
-          className="w-full sm:w-auto bg-gradient-to-r from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/30 font-semibold gap-2"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold gap-2 disabled:!opacity-100"
           disabled={isSpinning}
         >
           <Plus className="size-4" />
@@ -349,15 +351,21 @@ export function WheelView() {
 
         <Button
           onClick={handleSpin}
-          className="w-full sm:w-auto bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600 text-white shadow-lg shadow-amber-500/30 font-bold text-lg gap-2 px-8 py-4"
+          className={`w-full sm:w-auto ${isSpinning || availableSpins <= 0 ? 'bg-gray-700' : 'bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600'} text-white shadow-lg font-bold text-lg gap-2 px-8 py-4 disabled:!opacity-100`}
           disabled={isSpinning || availableSpins <= 0}
         >
-          {isSpinning ? (
-            <Loader2 className="size-5 animate-spin" />
-          ) : (
-            <Sparkles className="size-5" />
-          )}
+          {isSpinning && <Loader2 className="size-5 animate-spin" />}
           {isSpinning ? 'En cours...' : 'TOURNER'}
+        </Button>
+
+        <Button
+          onClick={() => setTvMode(true)}
+          className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/20 gap-2 disabled:!opacity-100"
+          disabled={isSpinning}
+          title="Mode Télé"
+        >
+          <Monitor className="size-5" />
+          TV
         </Button>
       </div>
 
@@ -386,6 +394,85 @@ export function WheelView() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      {/* Normal view */}
+      <div className="flex flex-col items-center px-4 py-6 gap-6 max-w-4xl mx-auto">
+        {wheelContent}
+      </div>
+
+      {/* TV Mode overlay */}
+      {tvMode && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+          {/* Quit button */}
+          <button
+            onClick={() => setTvMode(false)}
+            className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            <X className="size-4" />
+            Quitter Mode Télé
+          </button>
+
+          {/* TV mode wheel content */}
+          <div className="flex flex-col items-center gap-6 w-full max-w-[700px] px-4">
+            {/* Title area */}
+            <div className="text-center">
+              <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg tracking-wide">
+                🎡 ROUE DE LA CHANCE
+              </h2>
+              <div className="mt-2 flex items-center justify-center gap-3">
+                <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5 text-base font-semibold backdrop-blur-sm">
+                  <Ticket className="size-4 mr-1.5" />
+                  Tours disponibles : {availableSpins}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Wheel - larger in TV mode */}
+            <div className="relative w-full max-w-[700px] mx-auto">
+              {wheelSectors.length > 0 ? (
+                <SpinWheel
+                  sectors={wheelSectors}
+                  wheelConfig={wheelConfig}
+                  isSpinning={isSpinning}
+                  finalAngle={finalAngle}
+                  soundEnabled={soundEnabled}
+                />
+              ) : (
+                <div className="flex items-center justify-center aspect-square bg-white/10 rounded-full border border-white/20">
+                  <p className="text-white/50 text-center px-8">
+                    Configurez les lots dans l&apos;administration pour voir la roue
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+              <Button
+                onClick={() => setShowCodeDialog(true)}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold gap-2 disabled:!opacity-100"
+                disabled={isSpinning}
+              >
+                <Plus className="size-4" />
+                Ajouter un code
+              </Button>
+
+              <Button
+                onClick={handleSpin}
+                className={`w-full sm:w-auto ${isSpinning || availableSpins <= 0 ? 'bg-gray-700' : 'bg-gradient-to-r from-amber-400 via-yellow-500 to-red-500 hover:from-amber-500 hover:via-yellow-600 hover:to-red-600'} text-white shadow-lg font-bold text-lg gap-2 px-8 py-4 disabled:!opacity-100`}
+                disabled={isSpinning || availableSpins <= 0}
+              >
+                {isSpinning && <Loader2 className="size-5 animate-spin" />}
+                {isSpinning ? 'En cours...' : 'TOURNER'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -423,7 +510,7 @@ export function WheelView() {
             <Button
               onClick={handleValidateCode}
               disabled={validating || !codeInput.trim()}
-              className="bg-gradient-to-r from-emerald-400 to-emerald-600 text-white shadow-lg font-semibold"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg font-semibold disabled:!opacity-100"
             >
               {validating ? <Loader2 className="size-4 animate-spin" /> : 'Valider'}
             </Button>
@@ -451,6 +538,6 @@ export function WheelView() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

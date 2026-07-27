@@ -48,6 +48,8 @@ export const codesApi = {
   get: (id: string) => apiFetch<any>(`/codes/${id}`),
   update: (id: string, data: any) => apiFetch<any>(`/codes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   validate: (codeValue: string) => apiFetch<any>('/codes/validate', { method: 'POST', body: JSON.stringify({ codeValue }) }),
+  delete: (id: string) => apiFetch<any>(`/codes/${id}`, { method: 'DELETE' }),
+  batchDelete: (data: { ids?: string[]; campaignId?: string; createdAt?: string }) => apiFetch<any>('/codes/batch-delete', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Spin - returns result object

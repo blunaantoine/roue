@@ -1,8 +1,25 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { WheelSector, WheelConfig } from '@/types';
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+const LOSING_COLOR = '#2D2D2D';       // Uniform color for ALL losing sectors
+const BG_COLOR = '#0a0a0a';           // Opaque dark background circle
+const CENTER_COLOR = '#0a0a0a';       // Black center hub
+const GOLD_LIGHT = '#FFD700';         // Light gold
+const GOLD_DARK = '#B8860B';          // Dark gold
+const RIM_WIDTH = 14;                 // Width of the golden rim ring
+const RIVET_RADIUS = 4;              // Radius of decorative rivets on rim
+const LIGHT_RADIUS = 3.5;            // Radius of decorative lights around rim
+const LIGHT_COUNT_MULTIPLIER = 2;    // Number of lights per sector
+const CENTER_HUB_RADIUS = 36;        // Center hub circle radius
+const MAX_CANVAS_SIZE = 560;         // Max canvas dimension in px
+const TEXT_FONT_SIZE = 16;           // Sector label font size
+const TEXT_RADIUS_RATIO = 0.65;      // Position text at 65% of the radius
+const ANIMATION_DURATION = 5000;     // Default spin duration in ms
+
+// ─── Props ───────────────────────────────────────────────────────────────────
 interface SpinWheelProps {
   sectors: WheelSector[];
   wheelConfig: WheelConfig | null;
@@ -11,7 +28,7 @@ interface SpinWheelProps {
   soundEnabled: boolean;
 }
 
-// Utility: lighten a hex color by a percentage
+// ─── Utility: lighten a hex color by a percentage ────────────────────────────
 function lightenColor(color: string, percent: number): string {
   const num = parseInt(color.replace('#', ''), 16);
   const amt = Math.round(2.55 * percent);
@@ -22,7 +39,20 @@ function lightenColor(color: string, percent: number): string {
   return `#${(0x1000000 + val).toString(16).slice(1)}`;
 }
 
-export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundEnabled }: SpinWheelProps) {
+// ─── Utility: truncate label to fit within sector arc ────────────────────────
+function truncateLabel(label: string, maxChars: number): string {
+  if (label.length <= maxChars) return label;
+  return label.substring(0, maxChars - 1) + '…';
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+export function SpinWheel({
+  sectors,
+  wheelConfig,
+  isSpinning,
+  finalAngle,
+  soundEnabled,
+}: SpinWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
   const prevSpinningRef = useRef(false);
@@ -31,206 +61,348 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
   const targetAngleRef = useRef(0);
   const startTimeRef = useRef(0);
   const currentRotationRef = useRef(0);
+  // Track light flash phase for animation
+  const lightPhaseRef = useRef(0);
 
   const config = wheelConfig || {
     sectorCount: 10,
-    spinDuration: 5000,
+    spinDuration: ANIMATION_DURATION,
     pointerColor: '#FF0000',
-    centerColor: '#FFFFFF',
+    centerColor: CENTER_COLOR,
     outerRingColor: '#333333',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: BG_COLOR,
     textColor: '#FFFFFF',
-    fontSize: 14,
+    fontSize: TEXT_FONT_SIZE,
   };
 
   const sectorCount = sectors.length || config.sectorCount;
   const sectorAngle = 360 / sectorCount;
+  const spinDuration = config.spinDuration || ANIMATION_DURATION;
 
-  // Draw the wheel on canvas - uses refs so it doesn't need to be in React's dependency tracking
-  const drawWheel = useCallback((rotation: number, animating: boolean) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // ─── Draw the wheel ─────────────────────────────────────────────────────
+  const drawWheel = useCallback(
+    (rotation: number, animating: boolean) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    const size = canvas.width;
-    const centerX = size / 2;
-    const centerY = size / 2;
-    const radius = size / 2 - 20;
-    const innerRadius = 30;
+      const size = canvas.width;
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const radius = size / 2 - RIM_WIDTH - 4; // Inner radius for sectors
+      const outerRadius = size / 2 - 4;         // Outer edge of the rim
 
-    // Clear canvas
-    ctx.clearRect(0, 0, size, size);
+      // Clear the entire canvas
+      ctx.clearRect(0, 0, size, size);
 
-    // Apply 3D shadow effect
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetX = 5;
-    ctx.shadowOffsetY = 5;
-
-    // Outer ring
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + 10, 0, Math.PI * 2);
-    ctx.fillStyle = config.outerRingColor;
-    ctx.fill();
-    ctx.restore();
-
-    // Gold rim with gradient
-    ctx.save();
-    const rimGradient = ctx.createRadialGradient(centerX, centerY, radius - 2, centerX, centerY, radius + 10);
-    rimGradient.addColorStop(0, '#FFD700');
-    rimGradient.addColorStop(0.5, '#B8860B');
-    rimGradient.addColorStop(1, '#FFD700');
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + 10, 0, Math.PI * 2);
-    ctx.strokeStyle = rimGradient;
-    ctx.lineWidth = 8;
-    ctx.stroke();
-    ctx.restore();
-
-    // Draw sectors
-    const rotationRad = (rotation * Math.PI) / 180;
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(rotationRad);
-
-    for (let i = 0; i < sectorCount; i++) {
-      const sector = sectors[i] || {
-        label: 'Perdant',
-        color: '#374151',
-        isLosing: true,
-      };
-
-      const startAngleRad = (i * sectorAngle * Math.PI) / 180;
-      const endAngleRad = ((i + 1) * sectorAngle * Math.PI) / 180;
-
-      // Sector fill with gradient
+      // ── 1. Opaque dark background circle ──────────────────────────────
+      // This prevents any transparency showing through
+      ctx.save();
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.arc(0, 0, radius, startAngleRad, endAngleRad);
-      ctx.closePath();
+      ctx.arc(centerX, centerY, outerRadius + 2, 0, Math.PI * 2);
+      ctx.fillStyle = BG_COLOR;
+      ctx.fill();
+      ctx.restore();
 
-      // Create gradient for sector
-      const midAngle = (startAngleRad + endAngleRad) / 2;
-      const gradientX2 = Math.cos(midAngle) * radius;
-      const gradientY2 = Math.sin(midAngle) * radius;
+      // ── 2. Shadow behind the wheel ────────────────────────────────────
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+      ctx.shadowBlur = 25;
+      ctx.shadowOffsetX = 4;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
+      ctx.fillStyle = BG_COLOR;
+      ctx.fill();
+      ctx.restore();
 
-      const sectorGradient = ctx.createLinearGradient(0, 0, gradientX2, gradientY2);
-      if (sector.isLosing) {
-        sectorGradient.addColorStop(0, '#4B5563');
-        sectorGradient.addColorStop(1, sector.color);
-      } else {
-        sectorGradient.addColorStop(0, lightenColor(sector.color, 30));
-        sectorGradient.addColorStop(1, sector.color);
+      // ── 3. Draw sectors (rotated) ─────────────────────────────────────
+      const rotationRad = (rotation * Math.PI) / 180;
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(rotationRad);
+
+      for (let i = 0; i < sectorCount; i++) {
+        const sector = sectors[i] || {
+          label: 'Perdant',
+          color: LOSING_COLOR,
+          isLosing: true,
+        };
+
+        const startAngleRad = (i * sectorAngle * Math.PI) / 180;
+        const endAngleRad = ((i + 1) * sectorAngle * Math.PI) / 180;
+        const midAngleRad = (startAngleRad + endAngleRad) / 2;
+
+        // ── Sector fill ───────────────────────────────────────────────
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, startAngleRad, endAngleRad);
+        ctx.closePath();
+
+        if (sector.isLosing) {
+          // ALL losing sectors: uniform color, NO gradient
+          ctx.fillStyle = LOSING_COLOR;
+        } else {
+          // Winning sectors: slight gradient from lighter shade to base color
+          const gradientX2 = Math.cos(midAngleRad) * radius;
+          const gradientY2 = Math.sin(midAngleRad) * radius;
+          const sectorGradient = ctx.createLinearGradient(0, 0, gradientX2, gradientY2);
+          sectorGradient.addColorStop(0, lightenColor(sector.color, 25));
+          sectorGradient.addColorStop(1, sector.color);
+          ctx.fillStyle = sectorGradient;
+        }
+        ctx.fill();
+
+        // ── Sector border lines (thin golden) ─────────────────────────
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // ── Sector text (horizontal, positioned along arc) ────────────
+        ctx.save();
+        // Position the text at 65% of the radius along the mid-angle
+        const textRadius = radius * TEXT_RADIUS_RATIO;
+        const textX = Math.cos(midAngleRad) * textRadius;
+        const textY = Math.sin(midAngleRad) * textRadius;
+
+        ctx.translate(textX, textY);
+        // Counter-rotate to keep text horizontal (undo the wheel rotation + sector rotation)
+        ctx.rotate(-rotationRad - midAngleRad);
+
+        // Determine max characters based on sector angle
+        const maxChars = Math.max(4, Math.floor(sectorAngle / 7));
+        const labelText = truncateLabel(sector.label, maxChars);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = `bold ${TEXT_FONT_SIZE}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Text shadow for readability
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(labelText, 0, 0);
+        ctx.restore();
       }
 
-      ctx.fillStyle = sectorGradient;
+      // ── 4. Center hub (black with golden border) ─────────────────────
+      ctx.beginPath();
+      ctx.arc(0, 0, CENTER_HUB_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = CENTER_COLOR;
       ctx.fill();
+      // Golden border ring
+      ctx.strokeStyle = GOLD_LIGHT;
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
-      // Sector border
-      ctx.strokeStyle = '#FFD700';
+      // Inner decorative golden ring
+      ctx.beginPath();
+      ctx.arc(0, 0, CENTER_HUB_RADIUS - 6, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Sector text
+      ctx.restore(); // End rotated context
+
+      // ── 5. Golden rim with gradient ───────────────────────────────────
+      // Draw the rim as a thick ring between radius and outerRadius
       ctx.save();
-      ctx.rotate(midAngle);
-      const labelRadius = radius * 0.65;
-      ctx.fillStyle = config.textColor;
-      ctx.font = `bold ${Math.min(config.fontSize, 14)}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Truncate long labels
-      const maxChars = Math.floor(sectorAngle / 10);
-      let labelText = sector.label;
-      if (labelText.length > maxChars + 3) {
-        labelText = labelText.substring(0, maxChars) + '..';
-      }
-
-      // Draw text with shadow for readability
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-      ctx.shadowBlur = 3;
-      ctx.fillText(labelText, labelRadius, 0);
-      ctx.restore();
-
-      // Losing sector icon (sad face)
-      if (sector.isLosing) {
-        ctx.save();
-        ctx.rotate(midAngle);
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('😔', radius * 0.35, 0);
-        ctx.restore();
-      }
-    }
-
-    // Center circle with 3D effect
-    ctx.beginPath();
-    ctx.arc(0, 0, innerRadius + 5, 0, Math.PI * 2);
-    const centerGradient = ctx.createRadialGradient(-5, -5, 0, 0, 0, innerRadius + 5);
-    centerGradient.addColorStop(0, '#FFFFFF');
-    centerGradient.addColorStop(0.5, '#E0E0E0');
-    centerGradient.addColorStop(1, '#B0B0B0');
-    ctx.fillStyle = centerGradient;
-    ctx.fill();
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Center text
-    ctx.font = 'bold 10px Arial';
-    ctx.fillStyle = '#333';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('★', 0, 0);
-
-    ctx.restore();
-
-    // Pointer (fixed, not rotating) - triangular arrow at top
-    ctx.save();
-    ctx.translate(centerX, centerY - radius - 5);
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 3;
-
-    ctx.beginPath();
-    ctx.moveTo(0, 30);
-    ctx.lineTo(-15, -5);
-    ctx.lineTo(15, -5);
-    ctx.closePath();
-
-    const pointerGradient = ctx.createLinearGradient(0, -5, 0, 30);
-    pointerGradient.addColorStop(0, '#FF4444');
-    pointerGradient.addColorStop(1, config.pointerColor);
-
-    ctx.fillStyle = pointerGradient;
-    ctx.fill();
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-
-    // Decorative dots around the rim (lights)
-    for (let i = 0; i < sectorCount * 2; i++) {
-      const dotAngle = (i * Math.PI * 2) / (sectorCount * 2) + rotationRad;
-      const dotX = centerX + Math.cos(dotAngle) * (radius + 5);
-      const dotY = centerY + Math.sin(dotAngle) * (radius + 5);
+      const rimGradient = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        radius - 2,
+        centerX,
+        centerY,
+        outerRadius
+      );
+      rimGradient.addColorStop(0, GOLD_LIGHT);
+      rimGradient.addColorStop(0.4, GOLD_DARK);
+      rimGradient.addColorStop(0.7, GOLD_LIGHT);
+      rimGradient.addColorStop(1, GOLD_DARK);
 
       ctx.beginPath();
-      ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = animating
-        ? (i % 2 === 0 ? '#FFD700' : '#FF6B35')
-        : (i % 3 === 0 ? '#FFD700' : i % 3 === 1 ? '#FF6B35' : '#FF4444');
+      ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true); // Counter-clockwise for cutout
+      ctx.fillStyle = rimGradient;
       ctx.fill();
-    }
-  }, [sectors, config, sectorCount, sectorAngle]);
 
-  // Initial draw and resize
+      // Outer rim border
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = GOLD_DARK;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Inner rim border
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = GOLD_LIGHT;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      // ── 6. Rivets on the golden rim at sector boundaries ──────────────
+      const rimMidRadius = (radius + outerRadius) / 2;
+      ctx.save();
+      for (let i = 0; i < sectorCount; i++) {
+        const angleRad = (i * sectorAngle * Math.PI) / 180 + rotationRad;
+        const rivetX = centerX + Math.cos(angleRad) * rimMidRadius;
+        const rivetY = centerY + Math.sin(angleRad) * rimMidRadius;
+
+        // Rivet base (dark circle for depth)
+        ctx.beginPath();
+        ctx.arc(rivetX, rivetY, RIVET_RADIUS + 1, 0, Math.PI * 2);
+        ctx.fillStyle = '#8B6914';
+        ctx.fill();
+
+        // Rivet highlight (golden circle)
+        ctx.beginPath();
+        ctx.arc(rivetX, rivetY, RIVET_RADIUS, 0, Math.PI * 2);
+        const rivetGrad = ctx.createRadialGradient(
+          rivetX - 1,
+          rivetY - 1,
+          0,
+          rivetX,
+          rivetY,
+          RIVET_RADIUS
+        );
+        rivetGrad.addColorStop(0, '#FFF8DC'); // Light highlight
+        rivetGrad.addColorStop(0.5, GOLD_LIGHT);
+        rivetGrad.addColorStop(1, GOLD_DARK);
+        ctx.fillStyle = rivetGrad;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // ── 7. Decorative lights around the rim (alternating gold/red) ────
+      const lightCount = sectorCount * LIGHT_COUNT_MULTIPLIER;
+      const lightRadius = outerRadius + 1;
+      const lightPhase = lightPhaseRef.current;
+
+      ctx.save();
+      for (let i = 0; i < lightCount; i++) {
+        const angleRad = (i * Math.PI * 2) / lightCount + rotationRad;
+        const lightX = centerX + Math.cos(angleRad) * lightRadius;
+        const lightY = centerY + Math.sin(angleRad) * lightRadius;
+
+        // Determine if this light is "on" during animation (flash effect)
+        const isOn = animating
+          ? (i + lightPhase) % 3 !== 0
+          : true; // All on when not spinning
+
+        if (!isOn) continue;
+
+        const isGold = i % 2 === 0;
+        const baseColor = isGold ? GOLD_LIGHT : '#FF2D2D';
+
+        // Light glow
+        ctx.beginPath();
+        ctx.arc(lightX, lightY, LIGHT_RADIUS + 2, 0, Math.PI * 2);
+        ctx.fillStyle = isGold
+          ? 'rgba(255, 215, 0, 0.3)'
+          : 'rgba(255, 45, 45, 0.3)';
+        ctx.fill();
+
+        // Light dot
+        ctx.beginPath();
+        ctx.arc(lightX, lightY, LIGHT_RADIUS, 0, Math.PI * 2);
+        const lightGrad = ctx.createRadialGradient(
+          lightX,
+          lightY,
+          0,
+          lightX,
+          lightY,
+          LIGHT_RADIUS
+        );
+        lightGrad.addColorStop(0, isGold ? '#FFFACD' : '#FF8888');
+        lightGrad.addColorStop(1, baseColor);
+        ctx.fillStyle = lightGrad;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // ── 8. Golden triangle pointer with red jewel (fixed at top) ──────
+      ctx.save();
+      const pointerTipY = centerY - radius + 2; // Tip just touches the sector edge
+      const pointerBaseY = centerY - outerRadius - 18;
+      const pointerHalfWidth = 18;
+
+      // Pointer shadow
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 3;
+
+      // Golden triangle
+      ctx.beginPath();
+      ctx.moveTo(centerX, pointerTipY);                           // Tip (pointing down)
+      ctx.lineTo(centerX - pointerHalfWidth, pointerBaseY);       // Top-left
+      ctx.lineTo(centerX + pointerHalfWidth, pointerBaseY);       // Top-right
+      ctx.closePath();
+
+      const pointerGradient = ctx.createLinearGradient(
+        centerX,
+        pointerBaseY,
+        centerX,
+        pointerTipY
+      );
+      pointerGradient.addColorStop(0, GOLD_LIGHT);
+      pointerGradient.addColorStop(0.5, '#DAA520');
+      pointerGradient.addColorStop(1, GOLD_DARK);
+      ctx.fillStyle = pointerGradient;
+      ctx.fill();
+
+      // Pointer border
+      ctx.strokeStyle = GOLD_DARK;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Reset shadow for the jewel
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      // Red jewel circle inside the pointer
+      const jewelCenterY = pointerBaseY + (pointerTipY - pointerBaseY) * 0.35;
+      const jewelRadius = 6;
+
+      // Jewel outer ring
+      ctx.beginPath();
+      ctx.arc(centerX, jewelCenterY, jewelRadius + 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = GOLD_DARK;
+      ctx.fill();
+
+      // Jewel body (red with gradient)
+      ctx.beginPath();
+      ctx.arc(centerX, jewelCenterY, jewelRadius, 0, Math.PI * 2);
+      const jewelGrad = ctx.createRadialGradient(
+        centerX - 1,
+        jewelCenterY - 1,
+        0,
+        centerX,
+        jewelCenterY,
+        jewelRadius
+      );
+      jewelGrad.addColorStop(0, '#FF6666');   // Light red highlight
+      jewelGrad.addColorStop(0.4, '#FF0000'); // Bright red
+      jewelGrad.addColorStop(1, '#8B0000');   // Dark red
+      ctx.fillStyle = jewelGrad;
+      ctx.fill();
+
+      // Jewel shine
+      ctx.beginPath();
+      ctx.arc(centerX - 2, jewelCenterY - 2, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fill();
+
+      ctx.restore();
+    },
+    [sectors, config, sectorCount, sectorAngle]
+  );
+
+  // ─── Initial draw & resize ──────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -239,14 +411,14 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
     if (!container) return;
 
     const containerWidth = container.clientWidth;
-    const maxSize = Math.min(containerWidth, 500);
+    const maxSize = Math.min(containerWidth, MAX_CANVAS_SIZE);
     canvas.width = maxSize;
     canvas.height = maxSize;
 
     drawWheel(currentRotationRef.current, isAnimatingRef.current);
   }, [sectors, config, drawWheel]);
 
-  // Animation logic - start when isSpinning changes to true
+  // ─── Animation: starts when isSpinning flips to true ────────────────────
   useEffect(() => {
     if (isSpinning && !prevSpinningRef.current) {
       prevSpinningRef.current = true;
@@ -256,17 +428,21 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
       targetAngleRef.current = finalAngle;
       startTimeRef.current = Date.now();
 
-      const duration = config.spinDuration;
-
       const animate = () => {
         const elapsed = Date.now() - startTimeRef.current;
-        const progress = Math.min(elapsed / duration, 1);
+        const progress = Math.min(elapsed / spinDuration, 1);
 
-        // Ease out cubic for smooth deceleration
+        // Ease-out cubic for smooth deceleration
         const eased = 1 - Math.pow(1 - progress, 3);
 
-        const newRotation = startAngleRef.current + (targetAngleRef.current - startAngleRef.current) * eased;
+        const newRotation =
+          startAngleRef.current +
+          (targetAngleRef.current - startAngleRef.current) * eased;
         currentRotationRef.current = newRotation;
+
+        // Update light phase for flashing effect
+        lightPhaseRef.current = Math.floor(elapsed / 150) % 3;
+
         drawWheel(newRotation, true);
 
         if (progress < 1) {
@@ -274,6 +450,7 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
         } else {
           isAnimatingRef.current = false;
           currentRotationRef.current = targetAngleRef.current;
+          lightPhaseRef.current = 0;
           drawWheel(targetAngleRef.current, false);
         }
       };
@@ -284,6 +461,7 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
     if (!isSpinning && prevSpinningRef.current) {
       prevSpinningRef.current = false;
       isAnimatingRef.current = false;
+      lightPhaseRef.current = 0;
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -295,9 +473,9 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isSpinning, finalAngle, config.spinDuration, drawWheel]);
+  }, [isSpinning, finalAngle, spinDuration, drawWheel]);
 
-  // Handle window resize
+  // ─── Handle window resize ───────────────────────────────────────────────
   useEffect(() => {
     function handleResize() {
       const canvas = canvasRef.current;
@@ -306,7 +484,7 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
       if (!container) return;
 
       const containerWidth = container.clientWidth;
-      const maxSize = Math.min(containerWidth, 500);
+      const maxSize = Math.min(containerWidth, MAX_CANVAS_SIZE);
       canvas.width = maxSize;
       canvas.height = maxSize;
 
@@ -318,24 +496,46 @@ export function SpinWheel({ sectors, wheelConfig, isSpinning, finalAngle, soundE
   }, [drawWheel]);
 
   return (
-    <div className="relative w-full flex items-center justify-center">
+    <div className="relative w-full max-w-[560px] mx-auto flex items-center justify-center">
       {/* Glow effect behind wheel */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div
-          className={`w-[90%] h-[90%] rounded-full transition-all duration-1000 ${
+          className={`w-[92%] h-[92%] rounded-full transition-all duration-1000 ${
             isSpinning
-              ? 'shadow-[0_0_60px_rgba(255,215,0,0.6),0_0_120px_rgba(255,107,35,0.3)]'
-              : 'shadow-[0_0_30px_rgba(255,215,0,0.2)]'
+              ? 'shadow-[0_0_60px_rgba(255,215,0,0.5),0_0_120px_rgba(255,107,35,0.25)]'
+              : 'shadow-[0_0_30px_rgba(255,215,0,0.15)]'
           }`}
-          style={{ background: 'radial-gradient(circle, rgba(255,215,0,0.1) 0%, transparent 70%)' }}
+          style={{
+            background:
+              'radial-gradient(circle, rgba(255,215,0,0.08) 0%, transparent 70%)',
+          }}
         />
       </div>
 
+      {/* Canvas wheel */}
       <canvas
         ref={canvasRef}
         className="relative z-10 max-w-full"
-        style={{ aspectRatio: '1/1' }}
+        style={{ aspectRatio: '1 / 1' }}
       />
+
+      {/* Logo overlay positioned at center of canvas */}
+      {/* The logo is rendered as an HTML element on top of the canvas center */}
+      {/* Since the canvas center is black with a golden border, the logo sits on top */}
+      <div
+        className="absolute z-20 pointer-events-none flex items-center justify-center"
+        style={{
+          width: CENTER_HUB_RADIUS * 2,
+          height: CENTER_HUB_RADIUS * 2,
+          // Center it within the canvas
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
+      >
+        {/* Logo image - uncomment when logo.png is available */}
+        {/* <Image src="/logo.png" alt="Logo" width={48} height={48} className="object-contain" /> */}
+      </div>
     </div>
   );
 }
