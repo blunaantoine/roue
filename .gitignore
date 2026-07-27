@@ -52,3 +52,23 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Project-specific
+/db/
+/tool-results/
+/upload/
+/agent-ctx/
+/mini-services/wheel-sync/bun.lock
+/bun.lock
+/download/
+/tests/
+/examples/
+3000
+*.png
+*.jpg
+*.jpeg
+*.svg
+!public/logo.svg
+!public/robots.txt
+start-dev.sh
+worklog.md
